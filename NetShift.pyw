@@ -1,0 +1,10 @@
+"""NetShift — lanceur. Double-clic (ou « Lancer NetShift.bat »)."""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from netshift.app import main  # noqa: E402
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Build (PyInstaller)
+build/
+dist/
+*.spec
+
+# User data: presets, history, settings
+data/
+
+# OS / editors
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
