@@ -62,7 +62,7 @@ jobs:
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash)  $($_.Name)"
           } | Out-File dist/SHA256SUMS.txt -Encoding ascii
           Get-Content dist/SHA256SUMS.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: NetShift-${{ steps.version.outputs.value }}
           path: |
