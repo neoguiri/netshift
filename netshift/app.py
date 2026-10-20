@@ -4,6 +4,7 @@ from __future__ import annotations
 import ctypes
 import os
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -17,6 +18,7 @@ import customtkinter as ctk
 from . import __version__
 from . import netbackend as nb
 from . import nettools as nt
+from .i18n import LANGUAGES, _, language
 from .store import History, PresetStore, Settings, app_dir, data_dir, normalize_config, resource_dir, summarize
 from .tools_view import ToolsView
 from .tray import Tray
@@ -59,44 +61,44 @@ from .vpn_view import VpnView
 
 APP_NAME = "NetShift"
 VERSION = __version__
-LOAD_PRESET = "Charger un preset…"
-NO_TARGET = "Aucune (carte sélectionnée)"
+LOAD_PRESET = _("Charger un preset…")
+NO_TARGET = _("Aucune (carte sélectionnée)")
 
 
 def describe(cfg: dict) -> str:
     cfg = normalize_config(cfg)
     lines = []
     if cfg["mode"] == "dhcp":
-        lines.append("Adresse    : automatique (DHCP)")
+        lines.append(_("Adresse    : automatique (DHCP)"))
     else:
         try:
             p = nb.parse_mask(cfg["mask"])
             mask = f"{nb.prefix_to_mask(p)} (/{p})"
         except ValueError:
             mask = cfg["mask"]
-        lines.append(f"Adresse    : {cfg['ip']}")
-        lines.append(f"Masque     : {mask}")
-        lines.append(f"Passerelle : {cfg['gateway'] or 'aucune'}")
+        lines.append(_("Adresse    : {0}", cfg['ip']))
+        lines.append(_("Masque     : {0}", mask))
+        lines.append(_("Passerelle : {0}", cfg['gateway'] or _('aucune')))
         for x in cfg["extra_ips"]:
-            lines.append(f"IP suppl.  : {x}")
+            lines.append(_("IP suppl.  : {0}", x))
     if cfg["dns_mode"] == "auto" and cfg["mode"] == "dhcp":
-        lines.append("DNS        : automatiques (DHCP)")
+        lines.append(_("DNS        : automatiques (DHCP)"))
     else:
-        dns = ", ".join(d for d in (cfg["dns1"], cfg["dns2"]) if d) or "aucun"
-        lines.append(f"DNS        : {dns}")
+        dns = ", ".join(d for d in (cfg["dns1"], cfg["dns2"]) if d) or _("aucun")
+        lines.append(_("DNS        : {0}", dns))
     v6 = cfg["v6"]
     if v6["mode"] == "auto":
-        lines.append("IPv6       : automatique" + (f" · DNS {v6['dns1']}" if v6["dns1"] else ""))
+        lines.append(_("IPv6       : automatique") + (_(" · DNS {0}", v6['dns1']) if v6["dns1"] else ""))
     elif v6["mode"] == "static":
-        lines.append(f"IPv6       : {v6['ip']}/{v6['prefix']}" + (f" via {v6['gateway']}" if v6["gateway"] else ""))
+        lines.append(_("IPv6       : {0}/{1}", v6['ip'], v6['prefix']) + (_(" via {0}", v6['gateway']) if v6["gateway"] else ""))
         dns6 = ", ".join(d for d in (v6["dns1"], v6["dns2"]) if d)
         if dns6:
-            lines.append(f"DNS IPv6   : {dns6}")
+            lines.append(_("DNS IPv6   : {0}", dns6))
     elif v6["mode"] == "disabled":
-        lines.append("IPv6       : désactivé sur la carte")
+        lines.append(_("IPv6       : désactivé sur la carte"))
     if cfg.get("adv"):
-        lines.append(f"Métrique   : {cfg.get('metric') or 'auto'}")
-        lines.append(f"Suffixe DNS: {cfg.get('dns_suffix') or 'aucun'}")
+        lines.append(_("Métrique   : {0}", cfg.get('metric') or 'auto'))
+        lines.append(_("Suffixe DNS: {0}", cfg.get('dns_suffix') or _('aucun')))
     return "\n".join(lines)
 
 
@@ -137,13 +139,13 @@ class AdapterCard(ctk.CTkFrame):
         self.badge.configure(text=f" {nb.KINDS.get(a.kind, nb.KINDS['other'])[1]} ")
         p = a.primary_ip
         if a.disabled:
-            ip_txt, ip_col = "Désactivée", RED
+            ip_txt, ip_col = _("Désactivée"), RED
         elif p and not p.ip.startswith("169.254."):
-            ip_txt, ip_col = f"{p.ip}/{p.prefix}" + ("  · DHCP" if a.dhcp else ""), TEXT
+            ip_txt, ip_col = f"{p.ip}/{p.prefix}" + (_("  · DHCP") if a.dhcp else ""), TEXT
         elif not a.up:
-            ip_txt, ip_col = ("Câble déconnecté" if a.kind == "ethernet" else "Déconnectée"), MUTED
+            ip_txt, ip_col = (_("Câble déconnecté") if a.kind == "ethernet" else _("Déconnectée")), MUTED
         else:
-            ip_txt, ip_col = ("APIPA " + p.ip if p else "Aucune IP"), ORANGE
+            ip_txt, ip_col = ("APIPA " + p.ip if p else _("Aucune IP")), ORANGE
         self.ip.configure(text=ip_txt, text_color=ip_col)
         d = a.description
         self.desc.configure(text=d if len(d) <= 36 else d[:34] + "…")
@@ -183,7 +185,7 @@ class App(ctk.CTk):
         self.selected_preset: str | None = None
         self._preset_cards: dict[str, ctk.CTkFrame] = {}
 
-        self.title(f"{APP_NAME}{'' if self.admin else '  —  lecture seule'}")
+        self.title(f"{APP_NAME}{'' if self.admin else _('  —  lecture seule')}")
         self.geometry(self.settings.get("geometry", "1320x840"))
         self.minsize(1120, 720)
         ico = resource_dir() / "assets" / "netshift.ico"
@@ -209,8 +211,7 @@ class App(ctk.CTk):
         self._quitting = False
         self._tray_hint_shown = False
         self.tray = Tray(self)
-        self.log(f"{APP_NAME} {VERSION} démarré — {'administrateur' if self.admin else 'LECTURE SEULE (pas admin)'}"
-                 f" — données : {ddir}", "muted")
+        self.log(_("{0} {1} démarré — {2} — données : {3}", APP_NAME, VERSION, _('administrateur') if self.admin else _('LECTURE SEULE (pas admin)'), ddir), "muted")
 
     # ------------------------------------------------------------------ infra
     def ui(self, fn, *args, **kw):
@@ -242,8 +243,8 @@ class App(ctk.CTk):
                 if error:
                     self.ui(error, e)
                 else:
-                    self.ui(self.toast, f"Erreur : {e}", "err")
-                    self.ui(self.log, f"Erreur : {e}", "err")
+                    self.ui(self.toast, _("Erreur : {0}", e), "err")
+                    self.ui(self.log, _("Erreur : {0}", e), "err")
             finally:
                 if busy:
                     self.ui(self._set_busy, -1)
@@ -261,7 +262,7 @@ class App(ctk.CTk):
             self.progress.stop()
             self.progress.grid_remove()
             if self.status.cget("text").endswith("…"):   # message d'attente non remplacé par un toast
-                self.status.configure(text="Prêt", text_color=MUTED)
+                self.status.configure(text=_("Prêt"), text_color=MUTED)
 
     def toast(self, msg: str, kind: str = "info"):
         colors = {"ok": GREEN, "err": RED, "warn": ORANGE, "info": TEXT}
@@ -269,7 +270,7 @@ class App(ctk.CTk):
         self.status.configure(text=icons[kind] + msg, text_color=colors[kind])
         if self._toast_job:
             self.after_cancel(self._toast_job)
-        self._toast_job = self.after(8000, lambda: self.status.configure(text="Prêt", text_color=MUTED))
+        self._toast_job = self.after(8000, lambda: self.status.configure(text=_("Prêt"), text_color=MUTED))
 
     def log(self, msg: str, tag: str | None = None):
         stamp = time.strftime("%H:%M:%S")
@@ -280,7 +281,7 @@ class App(ctk.CTk):
         self.clipboard_clear()
         self.clipboard_append(text)
         if not quiet:
-            self.toast(f"Copié : {text if len(text) < 60 else text[:57] + '…'}", "ok")
+            self.toast(_("Copié : {0}", text if len(text) < 60 else text[:57] + '…'), "ok")
 
     @property
     def selected(self) -> nb.Adapter | None:
@@ -301,13 +302,13 @@ class App(ctk.CTk):
         t = ctk.CTkFrame(brand, fg_color="transparent")
         t.pack(side="left", padx=(10, 0))
         label(t, APP_NAME, Fonts.h2).pack(anchor="w")
-        label(t, "Configurations réseau", Fonts.small, MUTED).pack(anchor="w")
+        label(t, _("Configurations réseau"), Fonts.small, MUTED).pack(anchor="w")
 
         head = ctk.CTkFrame(sb, fg_color="transparent")
         head.grid(row=1, column=0, sticky="ew", padx=18, pady=(4, 4))
         top = ctk.CTkFrame(head, fg_color="transparent")
         top.pack(fill="x")
-        label(top, "CARTES RÉSEAU", Fonts.small_bold, MUTED).pack(side="left")
+        label(top, _("CARTES RÉSEAU"), Fonts.small_bold, MUTED).pack(side="left")
         self.refresh_btn = button(top, "⟳", self.refresh_adapters, kind="ghost", width=30, height=26,
                                   font=ctk.CTkFont("Segoe UI", 15))
         self.refresh_btn.pack(side="right")
@@ -320,30 +321,30 @@ class App(ctk.CTk):
         self.card_list = ctk.CTkScrollableFrame(sb, fg_color="transparent", corner_radius=0)
         self.card_list.grid(row=2, column=0, sticky="nsew", padx=(10, 4))
         self.card_list.grid_columnconfigure(0, weight=1)
-        self.loading_lbl = label(self.card_list, "Lecture des cartes…", Fonts.small, MUTED)
+        self.loading_lbl = label(self.card_list, _("Lecture des cartes…"), Fonts.small, MUTED)
         self.loading_lbl.grid(row=0, column=0, pady=20)
 
         opts = ctk.CTkFrame(sb, fg_color="transparent")
         opts.grid(row=3, column=0, sticky="ew", padx=18, pady=(8, 0))
-        self.show_down = ctk.CTkSwitch(opts, text="Cartes déconnectées", font=Fonts.small, text_color=MUTED,
+        self.show_down = ctk.CTkSwitch(opts, text=_("Cartes déconnectées"), font=Fonts.small, text_color=MUTED,
                                        progress_color=ACCENT, command=self._toggle_show_down)
         if self.settings.get("show_disconnected", True):
             self.show_down.select()
         self.show_down.pack(anchor="w", pady=2)
-        self.auto_refresh = ctk.CTkSwitch(opts, text="Actualisation auto (5 s)", font=Fonts.small, text_color=MUTED,
+        self.auto_refresh = ctk.CTkSwitch(opts, text=_("Actualisation auto (5 s)"), font=Fonts.small, text_color=MUTED,
                                           progress_color=ACCENT,
                                           command=lambda: self.settings.set("auto_refresh",
                                                                             bool(self.auto_refresh.get())))
         if self.settings.get("auto_refresh", True):
             self.auto_refresh.select()
         self.auto_refresh.pack(anchor="w", pady=2)
-        self.confirm_sw = ctk.CTkSwitch(opts, text="Confirmer avant d'appliquer", font=Fonts.small,
+        self.confirm_sw = ctk.CTkSwitch(opts, text=_("Confirmer avant d'appliquer"), font=Fonts.small,
                                         text_color=MUTED, progress_color=ACCENT,
                                         command=lambda: self.settings.set("confirm", bool(self.confirm_sw.get())))
         if self.settings.get("confirm", True):
             self.confirm_sw.select()
         self.confirm_sw.pack(anchor="w", pady=2)
-        self.tray_sw = ctk.CTkSwitch(opts, text="Fermer = réduire dans la zone de notif.", font=Fonts.small,
+        self.tray_sw = ctk.CTkSwitch(opts, text=_("Fermer = réduire dans la zone de notif."), font=Fonts.small,
                                      text_color=MUTED, progress_color=ACCENT,
                                      command=lambda: self.settings.set("close_to_tray", bool(self.tray_sw.get())))
         if self.settings.get("close_to_tray", False):
@@ -353,12 +354,16 @@ class App(ctk.CTk):
         bottom = ctk.CTkFrame(sb, fg_color="transparent")
         bottom.grid(row=4, column=0, sticky="ew", padx=18, pady=(12, 16))
         bottom.grid_columnconfigure(0, weight=1)
-        self.theme_seg = segmented(bottom, ["Clair", "Sombre", "Auto"], command=self._set_theme, height=28,
+        self.theme_seg = segmented(bottom, [_("Clair"), _("Sombre"), _("Auto")], command=self._set_theme, height=28,
                                    font=Fonts.small)
-        self.theme_seg.set({"light": "Clair", "dark": "Sombre"}.get(self.settings.get("theme"), "Auto"))
+        self.theme_seg.set({"light": _("Clair"), "dark": _("Sombre")}.get(self.settings.get("theme"), _("Auto")))
         self.theme_seg.grid(row=0, column=0, sticky="ew")
-        button(bottom, "Créer un raccourci sur le bureau", self.create_shortcut, kind="ghost", font=Fonts.small,
-               height=26).grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        self.lang_seg = segmented(bottom, list(LANGUAGES.values()), command=self._set_lang, height=26,
+                                  font=Fonts.small)
+        self.lang_seg.set(LANGUAGES[language()])
+        self.lang_seg.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        button(bottom, _("Créer un raccourci sur le bureau"), self.create_shortcut, kind="ghost", font=Fonts.small,
+               height=26).grid(row=2, column=0, sticky="ew", pady=(8, 0))
 
     def _logo_label(self, master) -> ctk.CTkLabel:
         """Logo PNG à la taille la plus proche de 38 px × facteur d'échelle (PNG natif Tk, sans Pillow)."""
@@ -407,7 +412,7 @@ class App(ctk.CTk):
         self._render_cards(force=True)
 
     def _set_theme(self, v):
-        mode = {"Clair": "light", "Sombre": "dark", "Auto": "system"}[v]
+        mode = {_("Clair"): "light", _("Sombre"): "dark", _("Auto"): "system"}[v]
         self.settings.set("theme", mode)
         ctk.set_appearance_mode(mode)
         self.after(50, self._restyle)
@@ -443,7 +448,7 @@ class App(ctk.CTk):
                 self.cards[a.guid] = c
             masked = len(self.adapters) - len(visible)
             if not visible or masked:
-                txt = f"{masked} carte(s) masquée(s) par les filtres" if masked else "Aucune carte à afficher"
+                txt = _("{0} carte(s) masquée(s) par les filtres", masked) if masked else _("Aucune carte à afficher")
                 self.loading_lbl.configure(text=txt)
                 self.loading_lbl.grid(row=len(visible) + 1, column=0, pady=(6, 10))
         else:
@@ -462,30 +467,30 @@ class App(ctk.CTk):
         if not self.admin:
             ban = ctk.CTkFrame(main, fg_color=ORANGE_SOFT, corner_radius=10)
             ban.grid(row=0, column=0, sticky="ew", pady=(0, 12))
-            label(ban, "⚠  Mode lecture seule — modifier une configuration IP nécessite les droits administrateur.",
+            label(ban, _("⚠  Mode lecture seule — modifier une configuration IP nécessite les droits administrateur."),
                   Fonts.body, ORANGE).pack(side="left", padx=14, pady=10)
-            button(ban, "Relancer en administrateur", self.relaunch_admin, kind="primary", height=30).pack(
+            button(ban, _("Relancer en administrateur"), self.relaunch_admin, kind="primary", height=30).pack(
                 side="right", padx=10, pady=8)
 
         self._build_header(main)
 
-        self.tabs = TabHost(main, ["Configuration", "Presets", "VPN", "Outils", "Historique & journal"],
+        self.tabs = TabHost(main, [_("Configuration"), _("Presets"), "VPN", _("Outils"), _("Historique & journal")],
                             command=self._on_tab)
         self.tabs.grid(row=2, column=0, sticky="nsew", pady=(14, 0))
-        self._build_config_tab(self.tabs.tab("Configuration"))
-        self._build_presets_tab(self.tabs.tab("Presets"))
+        self._build_config_tab(self.tabs.tab(_("Configuration")))
+        self._build_presets_tab(self.tabs.tab(_("Presets")))
         self.vpn = VpnView(self.tabs.tab("VPN"), self)
         self.vpn.grid(row=0, column=0, sticky="nsew")
         self._vpn_loaded = False
-        self.tools = ToolsView(self.tabs.tab("Outils"), self)
+        self.tools = ToolsView(self.tabs.tab(_("Outils")), self)
         self.tools.grid(row=0, column=0, sticky="nsew")
-        self._build_history_tab(self.tabs.tab("Historique & journal"))
+        self._build_history_tab(self.tabs.tab(_("Historique & journal")))
 
     def _on_tab(self):
         if not hasattr(self, "tabs"):   # appelé par TabHost pendant sa construction
             return
         tab = self.tabs.get()
-        if hasattr(self, "hist_list") and tab == "Historique & journal":
+        if hasattr(self, "hist_list") and tab == _("Historique & journal"):
             self._render_history()
         elif tab == "VPN" and hasattr(self, "vpn"):
             self.vpn.refresh(quiet=self._vpn_loaded)
@@ -498,7 +503,7 @@ class App(ctk.CTk):
         h.grid_columnconfigure(0, weight=1)
         top = ctk.CTkFrame(h, fg_color="transparent")
         top.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 0))
-        self.h_name = label(top, "Chargement…", Fonts.h1)
+        self.h_name = label(top, _("Chargement…"), Fonts.h1)
         self.h_name.pack(side="left")
         self.h_status = pill(top, "…")
         self._pills_shown = False
@@ -506,11 +511,11 @@ class App(ctk.CTk):
 
         actions = ctk.CTkFrame(top, fg_color="transparent")
         actions.pack(side="right")
-        self.btn_undo = button(actions, "↶  Annuler le dernier changement", self.undo_last, width=0)
+        self.btn_undo = button(actions, _("↶  Annuler le dernier changement"), self.undo_last, width=0)
         self.btn_undo.pack(side="left", padx=(0, 6))
-        self.btn_renew = button(actions, "⟳  Renouveler DHCP", self.renew_dhcp, width=0)
+        self.btn_renew = button(actions, _("⟳  Renouveler DHCP"), self.renew_dhcp, width=0)
         self.btn_renew.pack(side="left", padx=(0, 6))
-        self.btn_toggle = button(actions, "⏻  Désactiver", self.toggle_adapter, width=0)
+        self.btn_toggle = button(actions, _("⏻  Désactiver"), self.toggle_adapter, width=0)
         self.btn_toggle.pack(side="left", padx=(0, 6))
         self.btn_more = button(actions, "⋯", self._more_menu, width=36)
         self.btn_more.pack(side="left")
@@ -520,7 +525,7 @@ class App(ctk.CTk):
         chips = ctk.CTkFrame(h, fg_color="transparent")
         chips.grid(row=2, column=0, sticky="w", padx=18, pady=(8, 14))
         self.h_chips = {}
-        for key, txt in (("mac", "MAC"), ("speed", "Vitesse"), ("mtu", "MTU"), ("index", "Index")):
+        for key, txt in (("mac", "MAC"), ("speed", _("Vitesse")), ("mtu", "MTU"), ("index", _("Index"))):
             f = ctk.CTkFrame(chips, fg_color=SURFACE2, corner_radius=8, cursor="hand2")
             f.pack(side="left", padx=(0, 8))
             label(f, txt, Fonts.small, MUTED).pack(side="left", padx=(10, 6), pady=4)
@@ -533,14 +538,14 @@ class App(ctk.CTk):
     def _more_menu(self):
         a = self.selected
         m = tk.Menu(self, tearoff=0)
-        m.add_command(label="Renommer la carte…", command=self.rename_adapter)
-        m.add_command(label="Modifier le MTU…", command=self.change_mtu)
-        m.add_command(label="Libérer le bail DHCP", command=self.release_dhcp)
+        m.add_command(label=_("Renommer la carte…"), command=self.rename_adapter)
+        m.add_command(label=_("Modifier le MTU…"), command=self.change_mtu)
+        m.add_command(label=_("Libérer le bail DHCP"), command=self.release_dhcp)
         m.add_separator()
-        m.add_command(label="Copier le résumé de la carte", command=self.copy_summary)
-        m.add_command(label="Enregistrer la config actuelle comme preset", command=self.save_current_as_preset)
+        m.add_command(label=_("Copier le résumé de la carte"), command=self.copy_summary)
+        m.add_command(label=_("Enregistrer la config actuelle comme preset"), command=self.save_current_as_preset)
         m.add_separator()
-        m.add_command(label="Ouvrir les connexions réseau (ncpa.cpl)", command=lambda: os.startfile("ncpa.cpl"))
+        m.add_command(label=_("Ouvrir les connexions réseau (ncpa.cpl)"), command=lambda: os.startfile("ncpa.cpl"))
         if not a:
             for i in (0, 1, 2, 4, 5):
                 m.entryconfigure(i, state="disabled")
@@ -551,7 +556,7 @@ class App(ctk.CTk):
     def _render_header(self):
         a = self.selected
         if not a:
-            self.h_name.configure(text="Aucune carte sélectionnée")
+            self.h_name.configure(text=_("Aucune carte sélectionnée"))
             self.h_desc.configure(text="")
             for b in (self.btn_undo, self.btn_renew, self.btn_toggle, self.btn_more):
                 b.configure(state="disabled")
@@ -563,12 +568,12 @@ class App(ctk.CTk):
             self.h_mode.pack(side="left", padx=(6, 0))
             self._pills_shown = True
         if a.up:
-            self.h_status.configure(text="  Connectée  ", fg_color=GREEN_SOFT, text_color=GREEN)
+            self.h_status.configure(text=_("  Connectée  "), fg_color=GREEN_SOFT, text_color=GREEN)
         elif a.disabled:
-            self.h_status.configure(text="  Désactivée  ", fg_color=RED_SOFT, text_color=RED)
+            self.h_status.configure(text=_("  Désactivée  "), fg_color=RED_SOFT, text_color=RED)
         else:
-            self.h_status.configure(text="  Déconnectée  ", fg_color=GREY_SOFT, text_color=MUTED)
-        self.h_mode.configure(text="  DHCP  " if a.dhcp else "  IP fixe  ",
+            self.h_status.configure(text=_("  Déconnectée  "), fg_color=GREY_SOFT, text_color=MUTED)
+        self.h_mode.configure(text="  DHCP  " if a.dhcp else _("  IP fixe  "),
                               fg_color=ACCENT_SOFT if a.dhcp else ORANGE_SOFT,
                               text_color=ACCENT if a.dhcp else ORANGE)
         self.h_chips["mac"].configure(text=a.mac or "—")
@@ -576,7 +581,7 @@ class App(ctk.CTk):
         self.h_chips["mtu"].configure(text=str(a.mtu or "—"))
         self.h_chips["index"].configure(text=str(a.index))
         st = "normal" if self.admin else "disabled"
-        self.btn_toggle.configure(text="⏻  Activer" if a.disabled else "⏻  Désactiver", state=st)
+        self.btn_toggle.configure(text=_("⏻  Activer") if a.disabled else _("⏻  Désactiver"), state=st)
         self.btn_renew.configure(state=st if a.dhcp and a.up else "disabled")
         self.btn_undo.configure(state=st if self.history.last_for(a.description) else "disabled")
         self.btn_more.configure(state="normal")
@@ -594,17 +599,17 @@ class App(ctk.CTk):
         cur.grid_propagate(False)
         cur.grid_columnconfigure(0, weight=1)
         cur.grid_rowconfigure(1, weight=1)
-        label(cur, "Configuration actuelle", Fonts.h2).grid(row=0, column=0, sticky="w", padx=18, pady=(16, 6))
+        label(cur, _("Configuration actuelle"), Fonts.h2).grid(row=0, column=0, sticky="w", padx=18, pady=(16, 6))
         self.cur_body = ctk.CTkFrame(cur, fg_color="transparent")
         self.cur_body.grid(row=1, column=0, sticky="nsew", padx=18)
         self.cur_body.grid_columnconfigure(1, weight=1)
         btns = ctk.CTkFrame(cur, fg_color="transparent")
         btns.grid(row=2, column=0, sticky="ew", padx=18, pady=(8, 16))
         btns.grid_columnconfigure(0, weight=1)
-        button(btns, "Copier dans l'éditeur  →", self.copy_current_to_editor).grid(row=0, column=0, sticky="ew")
-        button(btns, "Enregistrer comme preset", self.save_current_as_preset).grid(row=1, column=0, sticky="ew",
+        button(btns, _("Copier dans l'éditeur  →"), self.copy_current_to_editor).grid(row=0, column=0, sticky="ew")
+        button(btns, _("Enregistrer comme preset"), self.save_current_as_preset).grid(row=1, column=0, sticky="ew",
                                                                                   pady=(6, 0))
-        label(cur, "Clic sur une valeur pour la copier", Fonts.small, MUTED).grid(row=3, column=0, pady=(0, 12))
+        label(cur, _("Clic sur une valeur pour la copier"), Fonts.small, MUTED).grid(row=3, column=0, pady=(0, 12))
 
         # --- éditeur
         ed = card(wrap)
@@ -613,7 +618,7 @@ class App(ctk.CTk):
         ed.grid_rowconfigure(1, weight=1)
         top = ctk.CTkFrame(ed, fg_color="transparent")
         top.grid(row=0, column=0, sticky="ew", padx=18, pady=(16, 8))
-        label(top, "Nouvelle configuration", Fonts.h2).pack(side="left")
+        label(top, _("Nouvelle configuration"), Fonts.h2).pack(side="left")
         self.cfg_loader = option_menu(top, [LOAD_PRESET], self._load_preset_into_editor, width=230)
         self.cfg_loader.pack(side="right")
 
@@ -625,13 +630,13 @@ class App(ctk.CTk):
 
         bar = ctk.CTkFrame(ed, fg_color="transparent")
         bar.grid(row=2, column=0, sticky="ew", padx=18, pady=(4, 16))
-        self.apply_btn = button(bar, "Appliquer", self.apply_editor, kind="primary", height=40,
+        self.apply_btn = button(bar, _("Appliquer"), self.apply_editor, kind="primary", height=40,
                                 font=Fonts.h3, width=260)
         self.apply_btn.pack(side="left")
-        button(bar, "Enregistrer comme preset", self.save_editor_as_preset, height=40).pack(side="left", padx=(8, 0))
-        button(bar, "Réinitialiser", lambda: self.form.set_config({"mode": "static"}), kind="ghost",
+        button(bar, _("Enregistrer comme preset"), self.save_editor_as_preset, height=40).pack(side="left", padx=(8, 0))
+        button(bar, _("Réinitialiser"), lambda: self.form.set_config({"mode": "static"}), kind="ghost",
                height=40).pack(side="right")
-        label(bar, "Ctrl+Entrée", Fonts.small, MUTED).pack(side="left", padx=(12, 0))
+        label(bar, _("Ctrl+Entrée"), Fonts.small, MUTED).pack(side="left", padx=(12, 0))
 
     def _render_current(self):
         for w in self.cur_body.winfo_children():
@@ -640,43 +645,43 @@ class App(ctk.CTk):
         if not a:
             return
         rows: list[tuple[str, str, object]] = []
-        rows.append(("Mode", "DHCP (automatique)" if a.dhcp else "Statique (manuelle)", ACCENT if a.dhcp else ORANGE))
+        rows.append((_("Mode"), _("DHCP (automatique)") if a.dhcp else _("Statique (manuelle)"), ACCENT if a.dhcp else ORANGE))
         if a.ips:
             for i, ip in enumerate(a.ips):
                 warn = ip.ip.startswith("169.254.")
-                rows.append(("Adresse IP" if i == 0 else "", f"{ip.ip}/{ip.prefix}", ORANGE if warn else TEXT))
+                rows.append((_("Adresse IP") if i == 0 else "", f"{ip.ip}/{ip.prefix}", ORANGE if warn else TEXT))
             p = a.primary_ip
-            rows.append(("Masque", p.mask, TEXT))
+            rows.append((_("Masque"), p.mask, TEXT))
         else:
-            rows.append(("Adresse IP", "aucune", MUTED))
+            rows.append((_("Adresse IP"), _("aucune"), MUTED))
         if a.gateways:
             for i, g in enumerate(a.gateways):
-                rows.append(("Passerelle" if i == 0 else "", g, TEXT))
+                rows.append((_("Passerelle") if i == 0 else "", g, TEXT))
         else:
-            rows.append(("Passerelle", "aucune", MUTED))
-        dns_src = "manuels" if (a.dns_static or not a.dhcp) else "DHCP"
+            rows.append((_("Passerelle"), _("aucune"), MUTED))
+        dns_src = _("manuels") if (a.dns_static or not a.dhcp) else "DHCP"
         if a.dns:
             for i, d in enumerate(a.dns):
-                rows.append((f"DNS ({dns_src})" if i == 0 else "", d, TEXT))
+                rows.append((_("DNS ({0})", dns_src) if i == 0 else "", d, TEXT))
         else:
-            rows.append(("DNS", "aucun", MUTED))
-        v6_label = {"auto": "automatique", "static": "statique", "disabled": "désactivé"}[a.ipv6_mode]
+            rows.append(("DNS", _("aucun"), MUTED))
+        v6_label = {"auto": _("automatique"), "static": _("statique"), "disabled": _("désactivé")}[a.ipv6_mode]
         rows.append(("IPv6", v6_label, MUTED if a.ipv6_mode == "disabled" else ACCENT))
         shown6 = a.global_ips6 or a.ips6[:1]   # le lien local seulement s'il n'y a rien d'autre
         for i, ip6 in enumerate(shown6[:3]):
-            rows.append(("" if i else "Adresse IPv6", f"{ip6.ip}/{ip6.prefix}", TEXT))
+            rows.append(("" if i else _("Adresse IPv6"), f"{ip6.ip}/{ip6.prefix}", TEXT))
         if a.gateways6:
-            rows.append(("Passerelle v6", a.gateways6[0], TEXT))
+            rows.append((_("Passerelle v6"), a.gateways6[0], TEXT))
         if a.dns6:
-            rows.append(("DNS IPv6", ", ".join(a.dns6[:2]), TEXT))
+            rows.append((_("DNS IPv6"), ", ".join(a.dns6[:2]), TEXT))
         metric = "auto" if a.auto_metric else str(a.metric or "—")
         if a.auto_metric and a.metric:
             metric += f" ({a.metric})"
-        rows.append(("Métrique", metric, TEXT))
+        rows.append((_("Métrique"), metric, TEXT))
         if a.dns_suffix:
-            rows.append(("Suffixe DNS", a.dns_suffix, TEXT))
+            rows.append((_("Suffixe DNS"), a.dns_suffix, TEXT))
         if a.primary_ip and a.primary_ip.ip.startswith("169.254."):
-            rows.append(("", "⚠ APIPA : aucun serveur DHCP n'a répondu", ORANGE))
+            rows.append(("", _("⚠ APIPA : aucun serveur DHCP n'a répondu"), ORANGE))
 
         for r, (k, v, col) in enumerate(rows):
             label(self.cur_body, k, Fonts.small, MUTED, anchor="w").grid(row=r, column=0, sticky="nw", pady=4,
@@ -689,34 +694,34 @@ class App(ctk.CTk):
     def _update_apply_btn(self):
         a = self.selected
         name = a.name if a else "—"
-        self.apply_btn.configure(text=f"Appliquer à « {name if len(name) < 22 else name[:20] + '…'} »",
+        self.apply_btn.configure(text=_("Appliquer à « {0} »", name if len(name) < 22 else name[:20] + '…'),
                                  state="normal" if (a and self.admin) else "disabled")
 
     def copy_current_to_editor(self):
         a = self.selected
         if a:
             self.form.set_config(a.to_config())
-            self.toast("Configuration actuelle copiée dans l'éditeur", "ok")
+            self.toast(_("Configuration actuelle copiée dans l'éditeur"), "ok")
 
     def _load_preset_into_editor(self, name):
         p = self.presets.by_name(name)
         if p:
             self.form.set_config(p["config"])
-            self.toast(f"Preset « {name} » chargé dans l'éditeur", "ok")
+            self.toast(_("Preset « {0} » chargé dans l'éditeur", name), "ok")
         self.cfg_loader.set(LOAD_PRESET)
 
     def apply_editor(self):
         a = self.selected
         if a:
-            self.apply(a, self.form.get_config(), "Éditeur")
+            self.apply(a, self.form.get_config(), _("Éditeur"))
 
     def save_editor_as_preset(self):
         cfg = self.form.get_config()
-        errors, _ = nb.validate_config(cfg)
+        errors, _warns = nb.validate_config(cfg)
         if errors:
-            info(self, "Configuration invalide", "Corrige les erreurs avant d'enregistrer :", "\n".join(errors))
+            info(self, _("Configuration invalide"), _("Corrige les erreurs avant d'enregistrer :"), "\n".join(errors))
             return
-        self._save_preset_dialog(cfg, "Nouveau preset")
+        self._save_preset_dialog(cfg, _("Nouveau preset"))
 
     def save_current_as_preset(self):
         a = self.selected
@@ -724,40 +729,39 @@ class App(ctk.CTk):
             self._save_preset_dialog(a.to_config(), f"{a.name} — {time.strftime('%d/%m %H:%M')}")
 
     def _save_preset_dialog(self, cfg, default_name):
-        name = ask_string(self, "Enregistrer un preset", f"Donne un nom à ce preset ({summarize(cfg)}) :",
-                          default_name, "Enregistrer")
+        name = ask_string(self, _("Enregistrer un preset"), _("Donne un nom à ce preset ({0}) :", summarize(cfg)),
+                          default_name, _("Enregistrer"))
         if name and name.strip():
             p = self.presets.add(name.strip(), cfg)
             self._presets_changed(select=p["id"])
-            self.toast(f"Preset « {p['name']} » enregistré", "ok")
-            self.log(f"Preset enregistré : {p['name']} ({summarize(cfg)})")
+            self.toast(_("Preset « {0} » enregistré", p['name']), "ok")
+            self.log(_("Preset enregistré : {0} ({1})", p['name'], summarize(cfg)))
 
     # ------------------------------------------------------------- appliquer
     def apply(self, adapter: nb.Adapter, cfg: dict, label_txt: str):
         if not self.admin:
-            info(self, "Droits insuffisants", "Relance NetShift en administrateur pour appliquer une configuration.")
+            info(self, _("Droits insuffisants"), _("Relance NetShift en administrateur pour appliquer une configuration."))
             return
         if self._applying:
-            self.toast("Une application est déjà en cours…", "warn")
+            self.toast(_("Une application est déjà en cours…"), "warn")
             return
         cfg = normalize_config(cfg)
         errors, warns = nb.validate_config(cfg)
         if errors:
-            info(self, "Configuration invalide", "Impossible d'appliquer :", "\n".join(errors))
+            info(self, _("Configuration invalide"), _("Impossible d'appliquer :"), "\n".join(errors))
             return
-        detail = f"Carte      : {adapter.name}\n{describe(cfg)}"
+        detail = _("Carte      : {0}\n{1}", adapter.name, describe(cfg))
         if warns:
             detail += "\n\n⚠ " + "\n⚠ ".join(warns)
         if (self.settings.get("confirm", True) or warns) and not confirm(
-                self, "Appliquer la configuration ?",
-                f"La configuration IP de « {adapter.name} » va être modifiée. "
-                "Les connexions en cours sur cette carte peuvent être coupées.",
-                "Appliquer", detail=detail):
+                self, _("Appliquer la configuration ?"),
+                _("La configuration IP de « {0} » va être modifiée. Les connexions en cours sur cette carte peuvent être coupées.", adapter.name),
+                _("Appliquer"), detail=detail):
             return
         before = adapter.to_config()
         self._applying = True
         self.apply_btn.configure(state="disabled")
-        self.log(f"Application sur {adapter.name} ({label_txt}) : {summarize(cfg)}", "accent")
+        self.log(_("Application sur {0} ({1}) : {2}", adapter.name, label_txt, summarize(cfg)), "accent")
 
         def work():
             logs = []
@@ -771,15 +775,15 @@ class App(ctk.CTk):
                 self.log("   " + line.replace("\n", "\n   "), "muted")
             self.history.add(adapter.name, adapter.description, before, cfg, label_txt, ok)
             if ok:
-                self.toast(f"Configuration appliquée à {adapter.name}", "ok")
+                self.toast(_("Configuration appliquée à {0}", adapter.name), "ok")
                 if self.state() != "normal":
-                    self.tray.notify(f"{label_txt} appliqué à {adapter.name}")
-                self.log(f"✓ Configuration appliquée à {adapter.name}", "ok")
+                    self.tray.notify(_("{0} appliqué à {1}", label_txt, adapter.name))
+                self.log(_("✓ Configuration appliquée à {0}", adapter.name), "ok")
             else:
-                self.toast(f"Échec partiel sur {adapter.name} — voir le journal", "err")
+                self.toast(_("Échec partiel sur {0} — voir le journal", adapter.name), "err")
                 if self.state() != "normal":
-                    self.tray.notify(f"Échec sur {adapter.name} — voir le journal de NetShift")
-                self.log(f"✕ Des erreurs sont survenues sur {adapter.name}", "err")
+                    self.tray.notify(_("Échec sur {0} — voir le journal de NetShift", adapter.name))
+                self.log(_("✕ Des erreurs sont survenues sur {0}", adapter.name), "err")
             self.refresh_adapters(quiet=True)
             for delay in (2000, 5000, 10000):
                 self.after(delay, lambda: self.refresh_adapters(quiet=True))
@@ -790,14 +794,14 @@ class App(ctk.CTk):
         def error(e):
             self._applying = False
             self._update_apply_btn()
-            self.toast(f"Erreur : {e}", "err")
-            self.log(f"Erreur : {e}", "err")
+            self.toast(_("Erreur : {0}", e), "err")
+            self.log(_("Erreur : {0}", e), "err")
 
-        self.bg(work, done, busy=f"Application de la configuration sur {adapter.name}…", error=error)
+        self.bg(work, done, busy=_("Application de la configuration sur {0}…", adapter.name), error=error)
 
     def _verify_gateway(self, gw):
         def work():
-            for _ in range(3):
+            for _attempt in range(3):
                 r = nt.ping(gw, 1000)
                 if r.ok:
                     return r
@@ -806,10 +810,10 @@ class App(ctk.CTk):
 
         def done(r):
             if r.ok:
-                self.log(f"   Vérification : passerelle {gw} joignable ({r.rtt} ms)", "ok")
+                self.log(_("   Vérification : passerelle {0} joignable ({1} ms)", gw, r.rtt), "ok")
             else:
-                self.log(f"   Vérification : passerelle {gw} injoignable ({r.error})", "warn")
-                self.toast(f"Appliqué, mais la passerelle {gw} ne répond pas au ping", "warn")
+                self.log(_("   Vérification : passerelle {0} injoignable ({1})", gw, r.error), "warn")
+                self.toast(_("Appliqué, mais la passerelle {0} ne répond pas au ping", gw), "warn")
 
         self.bg(work, done)
 
@@ -818,7 +822,7 @@ class App(ctk.CTk):
         e = self.history.last_for(a.description) if a else None
         if not e:
             return
-        self.apply(a, e["before"], f"Annulation ({e['time']})")
+        self.apply(a, e["before"], _("Annulation ({0})", e['time']))
 
     # ------------------------------------------------------- actions carte
     def toggle_adapter(self):
@@ -826,60 +830,59 @@ class App(ctk.CTk):
         if not a:
             return
         enable = a.disabled
-        if not enable and not confirm(self, "Désactiver la carte ?",
-                                      f"« {a.name} » sera désactivée jusqu'à ce que tu la réactives.",
-                                      "Désactiver", kind="danger"):
+        if not enable and not confirm(self, _("Désactiver la carte ?"),
+                                      _("« {0} » sera désactivée jusqu'à ce que tu la réactives.", a.name),
+                                      _("Désactiver"), kind="danger"):
             return
-        verb = "Activation" if enable else "Désactivation"
-        self.log(f"{verb} de {a.name}")
+        verb = _("Activation") if enable else _("Désactivation")
+        self.log(_("{0} de {1}", verb, a.name))
 
         def done(res):
             code, out = res
             if code == 0:
-                self.toast(f"{a.name} {'activée' if enable else 'désactivée'}", "ok")
+                self.toast(f"{a.name} {_('activée') if enable else _('désactivée')}", "ok")
             else:
-                self.toast(f"{verb} impossible — voir le journal", "err")
+                self.toast(_("{0} impossible — voir le journal", verb), "err")
                 self.log(out, "err")
             self.refresh_adapters(quiet=True)
             self.after(3000, lambda: self.refresh_adapters(quiet=True))
 
-        self.bg(lambda: nb.set_adapter_enabled(a, enable), done, busy=f"{verb} de {a.name}…")
+        self.bg(lambda: nb.set_adapter_enabled(a, enable), done, busy=_("{0} de {1}…", verb, a.name))
 
     def renew_dhcp(self):
         a = self.selected
         if a:
-            self._ipconfig(nb.dhcp_renew, a, "Renouvellement DHCP")
+            self._ipconfig(nb.dhcp_renew, a, _("Renouvellement DHCP"))
 
     def release_dhcp(self):
         a = self.selected
-        if a and confirm(self, "Libérer le bail DHCP ?", f"« {a.name} » perdra son adresse IP jusqu'au "
-                                                         "prochain renouvellement.", "Libérer", kind="danger"):
-            self._ipconfig(nb.dhcp_release, a, "Libération DHCP")
+        if a and confirm(self, _("Libérer le bail DHCP ?"), _("« {0} » perdra son adresse IP jusqu'au prochain renouvellement.", a.name), _("Libérer"), kind="danger"):
+            self._ipconfig(nb.dhcp_release, a, _("Libération DHCP"))
 
     def _ipconfig(self, fn, a, what):
         self.log(f"{what} : {a.name}")
 
         def done(res):
             code, out = res
-            self.log(out or "(pas de sortie)", "muted" if code == 0 else "err")
-            self.toast(f"{what} {'terminé' if code == 0 else 'en échec'}", "ok" if code == 0 else "err")
+            self.log(out or _("(pas de sortie)"), "muted" if code == 0 else "err")
+            self.toast(f"{what} {_('terminé') if code == 0 else _('en échec')}", "ok" if code == 0 else "err")
             self.refresh_adapters(quiet=True)
 
-        self.bg(lambda: fn(a), done, busy=f"{what} de {a.name}…")
+        self.bg(lambda: fn(a), done, busy=_("{0} de {1}…", what, a.name))
 
     def rename_adapter(self):
         a = self.selected
         if not a or not self.admin:
             return
-        new = ask_string(self, "Renommer la carte", f"Nouveau nom pour « {a.name} » :", a.name, "Renommer")
+        new = ask_string(self, _("Renommer la carte"), _("Nouveau nom pour « {0} » :", a.name), a.name, _("Renommer"))
         if not new or new.strip() == a.name:
             return
 
         def done(res):
             code, out = res
             if code == 0:
-                self.toast(f"Carte renommée en « {new.strip()} »", "ok")
-                self.log(f"Carte « {a.name} » renommée en « {new.strip()} »")
+                self.toast(_("Carte renommée en « {0} »", new.strip()), "ok")
+                self.log(_("Carte « {0} » renommée en « {1} »", a.name, new.strip()))
             else:
                 self.toast("Renommage impossible", "err")
                 self.log(out, "err")
@@ -891,38 +894,38 @@ class App(ctk.CTk):
         a = self.selected
         if not a or not self.admin:
             return
-        v = ask_string(self, "Modifier le MTU", "Valeur entre 576 et 9000 (1500 par défaut, 9000 pour les "
-                                                "jumbo frames si l'équipement le supporte).", str(a.mtu or 1500),
-                       "Appliquer")
+        v = ask_string(self, _("Modifier le MTU"), _("Valeur entre 576 et 9000 (1500 par défaut, 9000 pour les "
+                                                "jumbo frames si l'équipement le supporte)."), str(a.mtu or 1500),
+                       _("Appliquer"))
         if not v:
             return
         try:
             mtu = int(v)
             assert 576 <= mtu <= 9216
         except (ValueError, AssertionError):
-            self.toast("MTU invalide", "err")
+            self.toast(_("MTU invalide"), "err")
             return
 
         def done(res):
             code, out = res
-            self.log(f"MTU {mtu} sur {a.name} : {out or 'OK'}", None if code == 0 else "err")
-            self.toast(f"MTU réglé à {mtu}" if code == 0 else "Échec du changement de MTU",
+            self.log(_("MTU {0} sur {1} : {2}", mtu, a.name, out or 'OK'), None if code == 0 else "err")
+            self.toast(_("MTU réglé à {0}", mtu) if code == 0 else _("Échec du changement de MTU"),
                        "ok" if code == 0 else "err")
             self.refresh_adapters(quiet=True)
 
-        self.bg(lambda: nb.set_mtu(a, mtu), done, busy="Changement du MTU…")
+        self.bg(lambda: nb.set_mtu(a, mtu), done, busy=_("Changement du MTU…"))
 
     def copy_summary(self):
         a = self.selected
         if not a:
             return
-        lines = [f"{a.name} — {a.description}", f"État : {a.status}   MAC : {a.mac}   Vitesse : {a.speed}",
-                 f"Mode : {'DHCP' if a.dhcp else 'Statique'}"]
-        lines += [f"IP : {i.ip}/{i.prefix} ({i.mask})" for i in a.ips]
-        lines += [f"Passerelle : {g}" for g in a.gateways]
-        lines.append("DNS : " + (", ".join(a.dns) or "aucun"))
+        lines = [f"{a.name} — {a.description}", _("État : {0}   MAC : {1}   Vitesse : {2}", a.status, a.mac, a.speed),
+                 _("Mode : {0}", 'DHCP' if a.dhcp else _('Statique'))]
+        lines += [_("IP : {0}/{1} ({2})", i.ip, i.prefix, i.mask) for i in a.ips]
+        lines += [_("Passerelle : {0}", g) for g in a.gateways]
+        lines.append(_("DNS : ") + (", ".join(a.dns) or _("aucun")))
         self.copy("\n".join(lines), quiet=True)
-        self.toast("Résumé de la carte copié", "ok")
+        self.toast(_("Résumé de la carte copié"), "ok")
 
     # ========================================================= PRESETS TAB
     def _build_presets_tab(self, tab):
@@ -938,9 +941,9 @@ class App(ctk.CTk):
         left.grid_rowconfigure(2, weight=1)
         top = ctk.CTkFrame(left, fg_color="transparent")
         top.grid(row=0, column=0, sticky="ew", padx=16, pady=(16, 6))
-        label(top, "Mes presets", Fonts.h2).pack(side="left")
-        button(top, "+ Nouveau", self.new_preset, kind="primary", width=0, height=30).pack(side="right")
-        self.preset_search = entry(left, "Rechercher…", width=0)
+        label(top, _("Mes presets"), Fonts.h2).pack(side="left")
+        button(top, _("+ Nouveau"), self.new_preset, kind="primary", width=0, height=30).pack(side="right")
+        self.preset_search = entry(left, _("Rechercher…"), width=0)
         self.preset_search.grid(row=1, column=0, sticky="ew", padx=16, pady=(4, 6))
         self.preset_search.bind("<KeyRelease>", lambda e: self._render_preset_list())
         self.preset_list = ctk.CTkScrollableFrame(left, fg_color="transparent")
@@ -949,27 +952,27 @@ class App(ctk.CTk):
         io = ctk.CTkFrame(left, fg_color="transparent")
         io.grid(row=3, column=0, sticky="ew", padx=16, pady=(6, 14))
         io.grid_columnconfigure((0, 1), weight=1)
-        button(io, "Importer…", self.import_presets, height=30).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-        button(io, "Exporter…", self.export_presets, height=30).grid(row=0, column=1, sticky="ew", padx=(4, 0))
-        label(left, "Double-clic : appliquer (carte par défaut, sinon sélectionnée)", Fonts.small, MUTED).grid(row=4, column=0,
+        button(io, _("Importer…"), self.import_presets, height=30).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        button(io, _("Exporter…"), self.export_presets, height=30).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        label(left, _("Double-clic : appliquer (carte par défaut, sinon sélectionnée)"), Fonts.small, MUTED).grid(row=4, column=0,
                                                                                                 pady=(0, 10))
 
         right = card(wrap)
         right.grid(row=0, column=1, sticky="nsew")
         right.grid_columnconfigure(0, weight=1)
         right.grid_rowconfigure(2, weight=1)
-        self.pe_title = label(right, "Sélectionne un preset", Fonts.h2, anchor="w")
+        self.pe_title = label(right, _("Sélectionne un preset"), Fonts.h2, anchor="w")
         self.pe_title.grid(row=0, column=0, sticky="ew", padx=18, pady=(16, 6))
         meta = ctk.CTkFrame(right, fg_color="transparent")
         meta.grid(row=1, column=0, sticky="ew", padx=18)
         meta.grid_columnconfigure((0, 1), weight=1, uniform="m")
-        label(meta, "Nom", Fonts.small, MUTED).grid(row=0, column=0, sticky="w", padx=(0, 6))
-        label(meta, "Description", Fonts.small, MUTED).grid(row=0, column=1, sticky="w", padx=(6, 0))
-        self.pe_name = entry(meta, "Nom du preset", width=0)
+        label(meta, _("Nom"), Fonts.small, MUTED).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        label(meta, _("Description"), Fonts.small, MUTED).grid(row=0, column=1, sticky="w", padx=(6, 0))
+        self.pe_name = entry(meta, _("Nom du preset"), width=0)
         self.pe_name.grid(row=1, column=0, sticky="ew", padx=(0, 6))
-        self.pe_desc = entry(meta, "Notes (lieu, équipement, VLAN…)", width=0)
+        self.pe_desc = entry(meta, _("Notes (lieu, équipement, VLAN…)"), width=0)
         self.pe_desc.grid(row=1, column=1, sticky="ew", padx=(6, 0))
-        label(meta, "Carte par défaut (appliquer, double-clic, zone de notification)", Fonts.small, MUTED).grid(
+        label(meta, _("Carte par défaut (appliquer, double-clic, zone de notification)"), Fonts.small, MUTED).grid(
             row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
         self.pe_default = option_menu(meta, [NO_TARGET], width=0)
         self.pe_default.grid(row=3, column=0, sticky="ew", padx=(0, 6))
@@ -981,27 +984,27 @@ class App(ctk.CTk):
 
         bar = ctk.CTkFrame(right, fg_color="transparent")
         bar.grid(row=3, column=0, sticky="ew", padx=18, pady=(8, 4))
-        self.pe_save = button(bar, "Enregistrer", self.save_preset_edit, kind="success", width=120)
+        self.pe_save = button(bar, _("Enregistrer"), self.save_preset_edit, kind="success", width=120)
         self.pe_save.pack(side="left")
-        self.pe_dup = button(bar, "Dupliquer", self.duplicate_preset, width=0)
+        self.pe_dup = button(bar, _("Dupliquer"), self.duplicate_preset, width=0)
         self.pe_dup.pack(side="left", padx=(8, 0))
         self.pe_up = button(bar, "↑", lambda: self._move_preset(-1), width=34)
         self.pe_up.pack(side="left", padx=(8, 0))
         self.pe_down = button(bar, "↓", lambda: self._move_preset(1), width=34)
         self.pe_down.pack(side="left", padx=(4, 0))
-        self.pe_del = button(bar, "Supprimer", self.delete_preset, kind="danger", width=0)
+        self.pe_del = button(bar, _("Supprimer"), self.delete_preset, kind="danger", width=0)
         self.pe_del.pack(side="right")
 
         sep = ctk.CTkFrame(right, fg_color=BORDER, height=1)
         sep.grid(row=4, column=0, sticky="ew", padx=18, pady=10)
         ap = ctk.CTkFrame(right, fg_color="transparent")
         ap.grid(row=5, column=0, sticky="ew", padx=18, pady=(0, 16))
-        label(ap, "Appliquer à", Fonts.body, MUTED).pack(side="left")
+        label(ap, _("Appliquer à"), Fonts.body, MUTED).pack(side="left")
         self.pe_target = option_menu(ap, ["—"], width=260)
         self.pe_target.pack(side="left", padx=(8, 8))
-        self.pe_apply = button(ap, "Appliquer", self.apply_preset_edit, kind="primary", width=120, height=36)
+        self.pe_apply = button(ap, _("Appliquer"), self.apply_preset_edit, kind="primary", width=120, height=36)
         self.pe_apply.pack(side="left")
-        button(ap, "Vers l'éditeur", self.preset_to_editor, kind="ghost", width=0).pack(side="right")
+        button(ap, _("Vers l'éditeur"), self.preset_to_editor, kind="ghost", width=0).pack(side="right")
 
         self._presets_changed()
 
@@ -1024,7 +1027,7 @@ class App(ctk.CTk):
         shown = [p for p in self.presets.presets
                  if not q or q in (p["name"] + " " + p["description"] + " " + summarize(p["config"])).lower()]
         if not shown:
-            label(self.preset_list, "Aucun preset" if not q else "Aucun résultat", Fonts.small, MUTED).grid(
+            label(self.preset_list, _("Aucun preset") if not q else _("Aucun résultat"), Fonts.small, MUTED).grid(
                 row=0, column=0, pady=20)
         for i, p in enumerate(shown):
             sel = p["id"] == self.selected_preset
@@ -1033,17 +1036,17 @@ class App(ctk.CTk):
             c.grid(row=i, column=0, sticky="ew", pady=3, padx=(0, 6))
             c.grid_columnconfigure(1, weight=1)
             dhcp = p["config"]["mode"] == "dhcp"
-            badge = ctk.CTkLabel(c, text="DHCP" if dhcp else "FIXE", width=44, height=18, corner_radius=5,
+            badge = ctk.CTkLabel(c, text="DHCP" if dhcp else _("FIXE"), width=44, height=18, corner_radius=5,
                                  font=Fonts.small_bold, fg_color=ACCENT_SOFT if dhcp else ORANGE_SOFT,
                                  text_color=ACCENT if dhcp else ORANGE)
             badge.grid(row=0, column=0, rowspan=2, padx=(10, 10), pady=(8, 0), sticky="n")
             n = label(c, p["name"], Fonts.h3, anchor="w", height=18)
             n.grid(row=0, column=1, sticky="ew", pady=(7, 0), padx=(0, 10))
-            summ = "Adresse attribuée automatiquement" if summarize(p["config"]) == "DHCP" else summarize(p["config"])
+            summ = _("Adresse attribuée automatiquement") if summarize(p["config"]) == "DHCP" else summarize(p["config"])
             target = self.preset_adapter(p)
             target_txt = ""
             if p.get("adapter"):
-                target_txt = f"→ {target.name}" if target else f"→ {p['adapter'].get('name', '?')} (absente)"
+                target_txt = f"→ {target.name}" if target else _("→ {0} (absente)", p['adapter'].get('name', '?'))
             details = "  ·  ".join(x for x in (target_txt, p["description"]) if x)
             s = label(c, summ, Fonts.mono_small, MUTED, anchor="w", height=16)
             s.grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(1, 0 if details else 7))
@@ -1073,7 +1076,7 @@ class App(ctk.CTk):
         st = "normal" if p else "disabled"
         for b in (self.pe_save, self.pe_dup, self.pe_del, self.pe_up, self.pe_down):
             b.configure(state=st)
-        self.pe_title.configure(text=p["name"] if p else "Aucun preset")
+        self.pe_title.configure(text=p["name"] if p else _("Aucun preset"))
         self.pe_name.delete(0, "end")
         self.pe_desc.delete(0, "end")
         if p:
@@ -1086,7 +1089,7 @@ class App(ctk.CTk):
         if target:
             self.pe_default.set(target.name)
         elif ref:   # carte mémorisée mais absente (adaptateur USB débranché…) : on la conserve
-            absent = f"{ref.get('name', '?')} (absente)"
+            absent = _("{0} (absente)", ref.get('name', '?'))
             self.pe_default.configure(values=[NO_TARGET, absent] + [a.name for a in self.adapters])
             self.pe_default.set(absent)
         else:
@@ -1113,7 +1116,7 @@ class App(ctk.CTk):
                                 else "disabled")
 
     def new_preset(self):
-        p = self.presets.add("Nouveau preset", {"mode": "static", "mask": "255.255.255.0"})
+        p = self.presets.add(_("Nouveau preset"), {"mode": "static", "mask": "255.255.255.0"})
         self._presets_changed(select=p["id"])
         self.pe_name.focus_set()
         self.pe_name.select_range(0, "end")
@@ -1123,9 +1126,9 @@ class App(ctk.CTk):
         if not p:
             return
         cfg = self.pe_form.get_config()
-        errors, _ = nb.validate_config(cfg)
+        errors, _warns = nb.validate_config(cfg)
         if errors:
-            info(self, "Preset invalide", "Corrige les erreurs avant d'enregistrer :", "\n".join(errors))
+            info(self, _("Preset invalide"), _("Corrige les erreurs avant d'enregistrer :"), "\n".join(errors))
             return
         name = self.pe_name.get().strip() or p["name"]
         if name != p["name"] and self.presets.by_name(name):
@@ -1135,22 +1138,22 @@ class App(ctk.CTk):
             p.get("adapter") if self.pe_default.get() not in (NO_TARGET, "") and p.get("adapter") else None)
         self.presets.update(p["id"], name=name, description=self.pe_desc.get().strip(), config=cfg, adapter=ref)
         self._presets_changed()
-        self.toast(f"Preset « {name} » enregistré", "ok")
+        self.toast(_("Preset « {0} » enregistré", name), "ok")
 
     def duplicate_preset(self):
         p = self.presets.get(self.selected_preset)
         if p:
-            n = self.presets.add(f"{p['name']} (copie)", p["config"], p["description"])
+            n = self.presets.add(_("{0} (copie)", p['name']), p["config"], p["description"])
             self._presets_changed(select=n["id"])
 
     def delete_preset(self):
         p = self.presets.get(self.selected_preset)
-        if p and confirm(self, "Supprimer le preset ?", f"« {p['name']} » sera définitivement supprimé.",
-                         "Supprimer", kind="danger"):
+        if p and confirm(self, _("Supprimer le preset ?"), _("« {0} » sera définitivement supprimé.", p['name']),
+                         _("Supprimer"), kind="danger"):
             self.presets.delete(p["id"])
             self.selected_preset = None
             self._presets_changed()
-            self.toast("Preset supprimé", "ok")
+            self.toast(_("Preset supprimé"), "ok")
 
     def _move_preset(self, delta):
         if self.selected_preset:
@@ -1161,37 +1164,37 @@ class App(ctk.CTk):
         p = self.presets.get(self.selected_preset)
         target = next((a for a in self.adapters if a.name == self.pe_target.get()), None)
         if p and target:
-            self.apply(target, self.pe_form.get_config(), f"Preset « {p['name']} »")
+            self.apply(target, self.pe_form.get_config(), _("Preset « {0} »", p['name']))
 
     def _apply_preset_quick(self, pid):
         p = self.presets.get(pid)
         a = self.preset_adapter(p) or self.selected
         if p and a:
-            self.apply(a, p["config"], f"Preset « {p['name']} »")
+            self.apply(a, p["config"], _("Preset « {0} »", p['name']))
 
     def preset_to_editor(self):
         self.form.set_config(self.pe_form.get_config())
-        self.tabs.set("Configuration")
-        self.toast("Preset chargé dans l'éditeur", "ok")
+        self.tabs.set(_("Configuration"))
+        self.toast(_("Preset chargé dans l'éditeur"), "ok")
 
     def import_presets(self):
-        path = filedialog.askopenfilename(title="Importer des presets", filetypes=[("JSON", "*.json")])
+        path = filedialog.askopenfilename(title=_("Importer des presets"), filetypes=[("JSON", "*.json")])
         if not path:
             return
         try:
             n = self.presets.import_file(path)
             self._presets_changed()
-            self.toast(f"{n} preset(s) importé(s)", "ok")
-            self.log(f"{n} preset(s) importé(s) depuis {path}")
+            self.toast(_("{0} preset(s) importé(s)", n), "ok")
+            self.log(_("{0} preset(s) importé(s) depuis {1}", n, path))
         except Exception as e:
-            info(self, "Import impossible", str(e))
+            info(self, _("Import impossible"), str(e))
 
     def export_presets(self):
-        path = filedialog.asksaveasfilename(title="Exporter les presets", defaultextension=".json",
+        path = filedialog.asksaveasfilename(title=_("Exporter les presets"), defaultextension=".json",
                                             initialfile="netshift-presets.json", filetypes=[("JSON", "*.json")])
         if path:
             self.presets.export(path)
-            self.toast(f"Presets exportés vers {os.path.basename(path)}", "ok")
+            self.toast(_("Presets exportés vers {0}", os.path.basename(path)), "ok")
 
     # ========================================================= HISTORY TAB
     def _build_history_tab(self, tab):
@@ -1203,8 +1206,8 @@ class App(ctk.CTk):
         h.grid_rowconfigure(1, weight=1)
         top = ctk.CTkFrame(h, fg_color="transparent")
         top.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 6))
-        label(top, "Historique des changements", Fonts.h2).pack(side="left")
-        button(top, "Effacer", self._clear_history, kind="ghost", height=28).pack(side="right")
+        label(top, _("Historique des changements"), Fonts.h2).pack(side="left")
+        button(top, _("Effacer"), self._clear_history, kind="ghost", height=28).pack(side="right")
         self.hist_list = ctk.CTkScrollableFrame(h, fg_color="transparent")
         self.hist_list.grid(row=1, column=0, sticky="nsew", padx=(10, 4), pady=(0, 10))
         self.hist_list.grid_columnconfigure(0, weight=1)
@@ -1215,11 +1218,11 @@ class App(ctk.CTk):
         j.grid_rowconfigure(1, weight=1)
         top = ctk.CTkFrame(j, fg_color="transparent")
         top.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 6))
-        label(top, "Journal", Fonts.h2).pack(side="left")
-        button(top, "Exporter…", self._export_journal, kind="ghost", height=28).pack(side="right")
-        button(top, "Copier", lambda: self.copy(self.journal.text(), quiet=True) or self.toast("Journal copié", "ok"),
+        label(top, _("Journal"), Fonts.h2).pack(side="left")
+        button(top, _("Exporter…"), self._export_journal, kind="ghost", height=28).pack(side="right")
+        button(top, _("Copier"), lambda: self.copy(self.journal.text(), quiet=True) or self.toast(_("Journal copié"), "ok"),
                kind="ghost", height=28).pack(side="right")
-        button(top, "Vider", lambda: self.journal.clear(), kind="ghost", height=28).pack(side="right")
+        button(top, _("Vider"), lambda: self.journal.clear(), kind="ghost", height=28).pack(side="right")
         self.journal = Console(j, wrap="word")
         self.journal.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 16))
 
@@ -1227,7 +1230,7 @@ class App(ctk.CTk):
         for w in self.hist_list.winfo_children():
             w.destroy()
         if not self.history.entries:
-            label(self.hist_list, "Aucun changement enregistré pour l'instant.", Fonts.small, MUTED).grid(
+            label(self.hist_list, _("Aucun changement enregistré pour l'instant."), Fonts.small, MUTED).grid(
                 row=0, column=0, pady=16)
             return
         for i, e in enumerate(self.history.entries):
@@ -1246,42 +1249,40 @@ class App(ctk.CTk):
                   anchor="w").grid(row=1, column=1, columnspan=2, sticky="w", pady=(0, 6))
             target = next((a for a in self.adapters if a.description == e["adapter_desc"]), None)
             st = "normal" if target and self.admin else "disabled"
-            button(row, "Restaurer l'avant", lambda e=e, t=target: self.apply(t, e["before"], f"Restauration "
-                                                                                              f"({e['time']})"),
+            button(row, _("Restaurer l'avant"), lambda e=e, t=target: self.apply(t, e["before"], _("Restauration ({0})", e['time'])),
                    height=28, font=Fonts.small, state=st).grid(row=0, column=3, rowspan=2, padx=(6, 4))
-            button(row, "Réappliquer", lambda e=e, t=target: self.apply(t, e["after"], f"Réapplication "
-                                                                                      f"({e['time']})"),
+            button(row, _("Réappliquer"), lambda e=e, t=target: self.apply(t, e["after"], _("Réapplication ({0})", e['time'])),
                    height=28, font=Fonts.small, state=st).grid(row=0, column=4, rowspan=2, padx=(0, 10))
 
     def _clear_history(self):
-        if confirm(self, "Effacer l'historique ?", "La possibilité d'annuler les changements passés sera perdue.",
-                   "Effacer", kind="danger"):
+        if confirm(self, _("Effacer l'historique ?"), _("La possibilité d'annuler les changements passés sera perdue."),
+                   _("Effacer"), kind="danger"):
             self.history.clear()
             self._render_history()
             self._render_header()
 
     def _export_journal(self):
-        path = filedialog.asksaveasfilename(title="Exporter le journal", defaultextension=".txt",
+        path = filedialog.asksaveasfilename(title=_("Exporter le journal"), defaultextension=".txt",
                                             initialfile=f"netshift-journal-{time.strftime('%Y%m%d-%H%M')}.txt")
         if path:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(self.journal.text())
-            self.toast("Journal exporté", "ok")
+            self.toast(_("Journal exporté"), "ok")
 
     # ============================================================ STATUSBAR
     def _build_statusbar(self):
         bar = ctk.CTkFrame(self, fg_color="transparent", height=34)
         bar.grid(row=1, column=1, sticky="ew", padx=20, pady=(6, 8))
         bar.grid_columnconfigure(0, weight=1)
-        self.status = label(bar, "Prêt", Fonts.small, MUTED, anchor="w")
+        self.status = label(bar, _("Prêt"), Fonts.small, MUTED, anchor="w")
         self.status.grid(row=0, column=0, sticky="ew")
         self.progress = ctk.CTkProgressBar(bar, mode="indeterminate", width=140, height=6, progress_color=ACCENT)
         self.progress.grid(row=0, column=1, padx=(10, 10))
         self.progress.grid_remove()
         if self.admin:
-            pill(bar, "Administrateur", GREEN_SOFT, GREEN).grid(row=0, column=2)
+            pill(bar, _("Administrateur"), GREEN_SOFT, GREEN).grid(row=0, column=2)
         else:
-            pill(bar, "Lecture seule", ORANGE_SOFT, ORANGE).grid(row=0, column=2)
+            pill(bar, _("Lecture seule"), ORANGE_SOFT, ORANGE).grid(row=0, column=2)
 
     # ============================================================ ADAPTERS
     def refresh_adapters(self, quiet: bool = False, first: bool = False):
@@ -1301,12 +1302,12 @@ class App(ctk.CTk):
         def error(e):
             self._refreshing = False
             self.refresh_btn.configure(state="normal")
-            self.toast(f"Lecture des cartes impossible : {e}", "err")
-            self.log(f"Lecture des cartes impossible : {e}", "err")
+            self.toast(_("Lecture des cartes impossible : {0}", e), "err")
+            self.log(_("Lecture des cartes impossible : {0}", e), "err")
             if first:
                 self.after(5000, self._auto_loop)
 
-        self.bg(nb.list_adapters, done, busy=None if quiet else "Lecture des cartes réseau…", error=error)
+        self.bg(nb.list_adapters, done, busy=None if quiet else _("Lecture des cartes réseau…"), error=error)
 
     def _auto_loop(self):
         if self.auto_refresh.get() and not self._applying and self.state() != "iconic":
@@ -1321,12 +1322,12 @@ class App(ctk.CTk):
                 o = old.get(a.guid)
                 if o and o.status != a.status:
                     self.log(f"{a.name} : {o.status} → {a.status}", "warn" if not a.up else "ok")
-                    self.toast(f"{a.name} : {'connectée' if a.up else a.status.lower()}", "info")
+                    self.toast(f"{a.name} : {_('connectée') if a.up else a.status.lower()}", "info")
                 elif o and o.primary_ip != a.primary_ip:
                     p = a.primary_ip
-                    self.log(f"{a.name} : nouvelle adresse {p.ip + '/' + str(p.prefix) if p else 'aucune'}")
+                    self.log(_("{0} : nouvelle adresse {1}", a.name, p.ip + '/' + str(p.prefix) if p else _('aucune')))
                 elif not o:
-                    self.log(f"Nouvelle carte détectée : {a.name} ({a.description})", "accent")
+                    self.log(_("Nouvelle carte détectée : {0} ({1})", a.name, a.description), "accent")
         self.adapters = adapters
         if self.selected_guid not in {a.guid for a in adapters}:
             up = [a for a in adapters if a.up and not a.virtual]
@@ -1338,7 +1339,7 @@ class App(ctk.CTk):
             self._update_apply_btn()
             self._update_preset_target()
         if not quiet:
-            self.toast(f"{len(adapters)} carte(s) réseau détectée(s)", "ok")
+            self.toast(_("{0} carte(s) réseau détectée(s)", len(adapters)), "ok")
             if not self.form.ip.get() and self.selected:
                 self.form.set_config(self.selected.to_config())
 
@@ -1383,9 +1384,9 @@ class App(ctk.CTk):
         def done(res):
             code, out = res
             if code == 0:
-                self.toast("Raccourci créé sur le bureau", "ok")
+                self.toast(_("Raccourci créé sur le bureau"), "ok")
             else:
-                self.toast("Impossible de créer le raccourci", "err")
+                self.toast(_("Impossible de créer le raccourci"), "err")
                 self.log(out, "err")
 
         self.bg(lambda: nb.run_ps(ps), done)
@@ -1401,11 +1402,34 @@ class App(ctk.CTk):
         p = self.presets.get(pid)
         a = next((x for x in self.adapters if x.guid == guid), None)
         if not p or not a:
-            self.tray.notify("Preset ou carte introuvable")
+            self.tray.notify(_("Preset ou carte introuvable"))
             return
         if self.settings.get("confirm", True) or not self.admin:
             self.show_window()   # la confirmation (ou le message de droits) s'affiche dans la fenêtre
-        self.apply(a, p["config"], f"Preset « {p['name']} »")
+        self.apply(a, p["config"], _("Preset « {0} »", p['name']))
+
+    def _set_lang(self, label: str):
+        code = next(k for k, v in LANGUAGES.items() if v == label)
+        if code == language():
+            return
+        self.settings.set("lang", code)
+        if confirm(self, _("Redémarrer NetShift ?"),
+                   _("La nouvelle langue sera utilisée au prochain démarrage. Redémarrer maintenant ?"),
+                   _("Redémarrer")):
+            self.restart()
+        else:
+            self.toast(_("Langue enregistrée : appliquée au prochain démarrage"), "ok")
+
+    def restart(self):
+        """Relance l'app (même niveau de droits : un process lancé par un process admin est admin)."""
+        if getattr(sys, "frozen", False):
+            args = [sys.executable]
+        else:
+            pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+            args = [pyw if os.path.exists(pyw) else sys.executable, str(app_dir() / "NetShift.pyw")]
+        args.append("--elevated" if self.admin else "--no-elevate")
+        subprocess.Popen(args, cwd=str(app_dir()), close_fds=True)
+        self.quit_app()
 
     def quit_app(self):
         self._quitting = True
@@ -1416,8 +1440,8 @@ class App(ctk.CTk):
             self.withdraw()
             if not self._tray_hint_shown:
                 self._tray_hint_shown = True
-                self.tray.notify("NetShift reste disponible dans la zone de notification "
-                                 "(clic droit pour les presets, « Quitter » pour fermer).")
+                self.tray.notify(_("NetShift reste disponible dans la zone de notification "
+                                 "(clic droit pour les presets, « Quitter » pour fermer)."))
             return
         try:
             if self.state() == "normal":

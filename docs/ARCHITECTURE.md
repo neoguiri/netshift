@@ -17,7 +17,9 @@ netshift/
 ├── capture_view.py        Tools → Capture UI (table, details, filters, statistics, Wireshark)
 ├── vpn.py                 Windows VPN connections: read, validate, build PowerShell commands, rasdial
 ├── vpn_view.py            VPN tab (list, editor, connect / disconnect)
-└── tray.py                system-tray icon and menu (pystray; optional)
+├── tray.py                system-tray icon and menu (pystray; optional)
+├── i18n.py                _() translation function, language detection and switching
+└── locales/en.py          English catalog {French source string: English}
 installer/netshift.iss     Inno Setup script (built and tested by the Release workflow)
 scripts/make_screenshots.py  documentation screenshots with fictitious data (rendered with PrintWindow)
 scripts/make_icon.py       generates the app icon and logos
@@ -127,3 +129,10 @@ servers and the `ms_tcpip6` binding. A configuration's `v6` block has a `mode`: 
 `auto`, `static` or `disabled`. `build_v6_commands()` removes previous manual addresses and `::/0` routes, toggles
 router discovery, sets the address/route/DNS with `netsh interface ipv6`, and enables or disables the binding
 through PowerShell. Link-local addresses are never removed.
+
+## Translations
+
+`i18n._(text, *args)` looks `text` up in the active catalog and applies `str.format(*args)`. The language is
+fixed at start-up, before the other modules are imported (`NETSHIFT_LANG`, then `lang` in `settings.json`, then
+the Windows UI language), so module-level labels (tab names, enum labels) are translated consistently wherever
+they are compared. Switching language saves the setting and restarts the app.

@@ -11,6 +11,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from ctypes import wintypes
 from dataclasses import dataclass
 
+from .i18n import _
+
 # --------------------------------------------------------------------------- #
 #  ICMP via iphlpapi (pas de sous-processus, pas besoin d'être admin)
 # --------------------------------------------------------------------------- #
@@ -38,11 +40,11 @@ _iphlp.SendARP.argtypes = [wintypes.ULONG, wintypes.ULONG, ctypes.c_void_p, ctyp
 _iphlp.SendARP.restype = wintypes.DWORD
 
 _ICMP_STATUS = {
-    11002: "Réseau de destination inaccessible",
-    11003: "Hôte de destination inaccessible",
-    11010: "Délai d'attente dépassé",
-    11013: "TTL expiré",
-    11050: "Échec général",
+    11002: _("Réseau de destination inaccessible"),
+    11003: _("Hôte de destination inaccessible"),
+    11010: _("Délai d'attente dépassé"),
+    11013: _("TTL expiré"),
+    11050: _("Échec général"),
 }
 
 
@@ -63,10 +65,10 @@ def ping(host: str, timeout_ms: int = 1000, size: int = 32, ttl: int = 128) -> P
     try:
         ip = socket.gethostbyname(host)
     except OSError:
-        return PingResult(False, error=f"Hôte introuvable : {host}")
+        return PingResult(False, error=_("Hôte introuvable : {0}", host))
     handle = _iphlp.IcmpCreateFile()
     if not handle or handle == wintypes.HANDLE(-1).value:
-        return PingResult(False, error="IcmpCreateFile a échoué")
+        return PingResult(False, error=_("IcmpCreateFile a échoué"))
     try:
         data = ctypes.create_string_buffer(b"\x61" * size, size)
         opts = _IP_OPTION_INFORMATION(Ttl=ttl)
@@ -77,10 +79,10 @@ def ping(host: str, timeout_ms: int = 1000, size: int = 32, ttl: int = 128) -> P
         if n == 0:
             err = ctypes.GetLastError()
             src = socket.inet_ntoa(struct.pack("<I", rep.Address)) if rep.Address else ""
-            return PingResult(False, reply_from=src, error=_ICMP_STATUS.get(rep.Status or err, "Délai d'attente dépassé"))
+            return PingResult(False, reply_from=src, error=_ICMP_STATUS.get(rep.Status or err, _("Délai d'attente dépassé")))
         src = socket.inet_ntoa(struct.pack("<I", rep.Address))
         if rep.Status != 0:
-            return PingResult(False, reply_from=src, error=_ICMP_STATUS.get(rep.Status, f"Statut ICMP {rep.Status}"))
+            return PingResult(False, reply_from=src, error=_ICMP_STATUS.get(rep.Status, _("Statut ICMP {0}", rep.Status)))
         return PingResult(True, rtt=rep.RoundTripTime, ttl=rep.Options.Ttl, reply_from=src)
     finally:
         _iphlp.IcmpCloseHandle(handle)
@@ -110,7 +112,7 @@ def mac_vendor(mac: str) -> str:
     if len(h) < 6:
         return ""
     if int(h[:2], 16) & 0x02:
-        return "Adresse privée (aléatoire)"
+        return _("Adresse privée (aléatoire)")
     if _OUI is None:
         try:
             import gzip
@@ -147,7 +149,7 @@ def scan_hosts(network: str, on_result, on_progress, stop: threading.Event,
                resolve_names: bool = True, use_arp: bool = True, workers: int = 256, timeout_ms: int = 600):
     net = ipaddress.IPv4Network(network, strict=False)
     if net.num_addresses > 4096:
-        raise ValueError("Plage trop grande (max /20, soit 4096 adresses)")
+        raise ValueError(_("Plage trop grande (max /20, soit 4096 adresses)"))
     hosts = [str(h) for h in (net.hosts() if net.prefixlen < 31 else net)]
     total, done = len(hosts), 0
     lock = threading.Lock()
@@ -187,7 +189,7 @@ COMMON_PORTS = {
     110: "POP3", 123: "NTP", 135: "RPC", 139: "NetBIOS", 143: "IMAP", 161: "SNMP", 389: "LDAP", 443: "HTTPS",
     445: "SMB", 502: "Modbus", 554: "RTSP", 587: "SMTP-sub", 636: "LDAPS", 993: "IMAPS", 995: "POP3S",
     1433: "MSSQL", 1883: "MQTT", 3306: "MySQL", 3389: "RDP", 5432: "PostgreSQL", 5900: "VNC",
-    5985: "WinRM", 8080: "HTTP-alt", 8443: "HTTPS-alt", 9100: "Imprimante",
+    5985: "WinRM", 8080: "HTTP-alt", 8443: "HTTPS-alt", 9100: _("Imprimante"),
 }
 
 
@@ -207,9 +209,9 @@ def parse_ports(spec: str) -> list[int]:
             if 1 <= p <= 65535:
                 ports.add(p)
     if not ports:
-        raise ValueError("Aucun port valide")
+        raise ValueError(_("Aucun port valide"))
     if len(ports) > 10000:
-        raise ValueError("Trop de ports (max 10000)")
+        raise ValueError(_("Trop de ports (max 10000)"))
     return sorted(ports)
 
 
@@ -253,20 +255,20 @@ def subnet_info(text: str, mask: str | None = None) -> list[tuple[str, str]]:
     last = net.broadcast_address - 1 if net.prefixlen < 31 else net.broadcast_address
     ip = iface.ip
     cls = "A" if ip in ipaddress.IPv4Network("0.0.0.0/1") else "B" if ip in ipaddress.IPv4Network("128.0.0.0/2") \
-        else "C" if ip in ipaddress.IPv4Network("192.0.0.0/3") else "D (multicast)" if ip.is_multicast else "E"
-    kind = "Privée" if ip.is_private else "Loopback" if ip.is_loopback else "Link-local (APIPA)" if ip.is_link_local \
-        else "Multicast" if ip.is_multicast else "Publique"
+        else "C" if ip in ipaddress.IPv4Network("192.0.0.0/3") else _("D (multicast)") if ip.is_multicast else "E"
+    kind = _("Privée") if ip.is_private else _("Loopback") if ip.is_loopback else _("Link-local (APIPA)") if ip.is_link_local \
+        else _("Multicast") if ip.is_multicast else _("Publique")
     return [
-        ("Adresse", str(ip)),
-        ("Masque", f"{net.netmask}  (/{net.prefixlen})"),
-        ("Masque inverse", str(net.hostmask)),
-        ("Réseau", str(net.network_address)),
-        ("Broadcast", str(net.broadcast_address)),
-        ("Première IP", str(first)),
-        ("Dernière IP", str(last)),
-        ("Hôtes utilisables", f"{hosts:,}".replace(",", " ")),
-        ("Classe / type", f"{cls} — {kind}"),
-        ("Binaire", ".".join(f"{int(o):08b}" for o in str(ip).split("."))),
+        (_("Adresse"), str(ip)),
+        (_("Masque"), f"{net.netmask}  (/{net.prefixlen})"),
+        (_("Masque inverse"), str(net.hostmask)),
+        (_("Réseau"), str(net.network_address)),
+        (_("Broadcast"), str(net.broadcast_address)),
+        (_("Première IP"), str(first)),
+        (_("Dernière IP"), str(last)),
+        (_("Hôtes utilisables"), f"{hosts:,}".replace(",", " ")),
+        (_("Classe / type"), f"{cls} — {kind}"),
+        (_("Binaire"), ".".join(f"{int(o):08b}" for o in str(ip).split("."))),
     ]
 
 
@@ -277,7 +279,7 @@ def public_ip(timeout: float = 5.0) -> str:
                 return r.read().decode().strip()
         except Exception:
             continue
-    raise RuntimeError("Impossible de joindre un service d'IP publique")
+    raise RuntimeError(_("Impossible de joindre un service d'IP publique"))
 
 
 def resolve(name: str) -> list[str]:

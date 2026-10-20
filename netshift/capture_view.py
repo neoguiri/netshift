@@ -12,6 +12,7 @@ from tkinter import filedialog, ttk
 import customtkinter as ctk
 
 from . import capture as cap
+from .i18n import _
 from .ui import (
     ACCENT,
     BORDER,
@@ -57,37 +58,37 @@ class CaptureSection:
         f.grid_rowconfigure(3, weight=1)
         h = ctk.CTkFrame(f, fg_color="transparent")
         h.grid(row=0, column=0, sticky="ew", padx=18, pady=(16, 8))
-        label(h, "Capture de paquets", Fonts.h2).pack(anchor="w")
-        label(h, "Trafic IPv4 de la carte (droits administrateur requis) · ouverture de fichiers .pcap/.pcapng · "
-                 "export pour Wireshark", Fonts.small, MUTED).pack(anchor="w")
+        label(h, _("Capture de paquets"), Fonts.h2).pack(anchor="w")
+        label(h, _("Trafic IPv4 de la carte (droits administrateur requis) · ouverture de fichiers .pcap/.pcapng · "
+                 "export pour Wireshark"), Fonts.small, MUTED).pack(anchor="w")
 
         t = ctk.CTkFrame(f, fg_color="transparent")
         t.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 8))
-        label(t, "Carte", Fonts.small, MUTED).pack(side="left", padx=(0, 6))
+        label(t, _("Carte"), Fonts.small, MUTED).pack(side="left", padx=(0, 6))
         self.iface = option_menu(t, ["—"], width=260)
         self.iface.pack(side="left")
-        self.start_btn = button(t, "▶ Capturer", self.start, kind="primary", width=110)
+        self.start_btn = button(t, _("▶ Capturer"), self.start, kind="primary", width=110)
         self.start_btn.pack(side="left", padx=(10, 0))
-        self.stop_btn = button(t, "■ Arrêter", self.stop, kind="danger", width=90, state="disabled")
+        self.stop_btn = button(t, _("■ Arrêter"), self.stop, kind="danger", width=90, state="disabled")
         self.stop_btn.pack(side="left", padx=(6, 0))
-        button(t, "Effacer", self.clear, kind="ghost", width=0).pack(side="left", padx=(6, 0))
-        self.ws_btn = button(t, "Wireshark", self.open_wireshark, width=0)
+        button(t, _("Effacer"), self.clear, kind="ghost", width=0).pack(side="left", padx=(6, 0))
+        self.ws_btn = button(t, _("Wireshark"), self.open_wireshark, width=0)
         self.ws_btn.pack(side="right")
-        button(t, "Exporter", self.export, width=0).pack(side="right", padx=(0, 6))
-        button(t, "Ouvrir…", self.open_file, width=0).pack(side="right", padx=(0, 6))
-        button(t, "Statistiques", self.show_stats, width=0).pack(side="right", padx=(0, 6))
+        button(t, _("Exporter"), self.export, width=0).pack(side="right", padx=(0, 6))
+        button(t, _("Ouvrir…"), self.open_file, width=0).pack(side="right", padx=(0, 6))
+        button(t, _("Statistiques"), self.show_stats, width=0).pack(side="right", padx=(0, 6))
 
         r = ctk.CTkFrame(f, fg_color="transparent")
         r.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 8))
         r.grid_columnconfigure(1, weight=1)
-        label(r, "Filtre", Fonts.small, MUTED).grid(row=0, column=0, padx=(0, 6))
-        self.filter_entry = entry(r, "ex. tcp port 443 · dns or icmp · host 192.168.1.1 · not arp · texte libre"
-                                     "   (Ctrl+F)", width=0)
+        label(r, _("Filtre"), Fonts.small, MUTED).grid(row=0, column=0, padx=(0, 6))
+        self.filter_entry = entry(r, _("ex. tcp port 443 · dns or icmp · host 192.168.1.1 · not arp · texte libre"
+                                     "   (Ctrl+F)"), width=0)
         self.filter_entry.grid(row=0, column=1, sticky="ew")
         self.filter_entry.bind("<KeyRelease>", lambda e: self._schedule_filter())
         self.filter_entry.bind("<Escape>", lambda e: self._set_filter(""))
         button(r, "?", self.show_help, kind="ghost", width=32).grid(row=0, column=2, padx=(4, 0))
-        self.autoscroll = ctk.CTkSwitch(r, text="Défilement auto", font=Fonts.small, text_color=MUTED,
+        self.autoscroll = ctk.CTkSwitch(r, text=_("Défilement auto"), font=Fonts.small, text_color=MUTED,
                                         progress_color=ACCENT)
         self.autoscroll.select()
         self.autoscroll.grid(row=0, column=3, padx=(8, 0))
@@ -95,12 +96,12 @@ class CaptureSection:
         under.grid(row=1, column=1, columnspan=3, sticky="ew", pady=(4, 0))
         chips = ctk.CTkFrame(under, fg_color="transparent")
         chips.pack(side="left")
-        for txt, expr in (("Tout", ""), ("TCP", "tcp"), ("UDP", "udp"), ("DNS", "dns or mdns or llmnr"),
-                          ("ICMP", "icmp"), ("Web", "port 80 or port 443 or port 8080"), ("ARP", "arp"),
-                          ("Erreurs", "rst or unreachable or nxdomain")):
+        for txt, expr in ((_("Tout"), ""), ("TCP", "tcp"), ("UDP", "udp"), ("DNS", "dns or mdns or llmnr"),
+                          ("ICMP", "icmp"), (_("Web"), "port 80 or port 443 or port 8080"), ("ARP", "arp"),
+                          (_("Erreurs"), "rst or unreachable or nxdomain")):
             button(chips, txt, lambda e=expr: self._set_filter(e), kind="ghost", height=24, width=0,
                    font=Fonts.small).pack(side="left", padx=(0, 2))
-        self.stats = label(under, "Prêt", Fonts.small, MUTED, anchor="e")
+        self.stats = label(under, _("Prêt"), Fonts.small, MUTED, anchor="e")
         self.stats.pack(side="right")
         f.winfo_toplevel().bind("<Control-f>", self._focus_filter, add="+")
 
@@ -117,10 +118,10 @@ class CaptureSection:
         cols = ("no", "time", "src", "dst", "proto", "len", "info")
         self.tree = ttk.Treeview(holder, columns=cols, show="headings", style="IPM.Treeview", selectmode="browse")
         k = ui_scale(f)
-        for c, txt, w, anchor, stretch in (("no", "N°", 60, "e", False), ("time", "Temps", 80, "e", False),
-                                           ("src", "Source", 130, "w", False), ("dst", "Destination", 130, "w", False),
-                                           ("proto", "Proto", 70, "center", False), ("len", "Long.", 70, "center", False),
-                                           ("info", "Info", 460, "w", True)):
+        for c, txt, w, anchor, stretch in (("no", "N°", 60, "e", False), ("time", _("Temps"), 80, "e", False),
+                                           ("src", _("Source"), 130, "w", False), ("dst", _("Destination"), 130, "w", False),
+                                           ("proto", _("Proto"), 70, "center", False), ("len", _("Long."), 70, "center", False),
+                                           ("info", _("Info"), 460, "w", True)):
             self.tree.heading(c, text=txt, anchor="w" if c == "info" else "center")
             self.tree.column(c, width=int(w * k), anchor=anchor, stretch=stretch)
         self.tree.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=6)
@@ -139,7 +140,7 @@ class CaptureSection:
         self.detail_out.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
         self.hex_out = Console(details, height=120, font=Fonts.mono_small)
         self.hex_out.grid(row=0, column=1, sticky="nsew")
-        self.detail_out.write("Sélectionne un paquet pour voir son détail.", "muted")
+        self.detail_out.write(_("Sélectionne un paquet pour voir son détail."), "muted")
 
         self.restyle()
         self._refresh_ifaces()
@@ -157,7 +158,7 @@ class CaptureSection:
     def _refresh_ifaces(self):
         if not self.capture:
             cands = self._candidates()
-            names = [c[0] for c in cands] or ["Aucune carte avec IP"]
+            names = [c[0] for c in cands] or [_("Aucune carte avec IP")]
             self.iface.configure(values=names)
             if self.iface.get() not in names:
                 sel = self.app.selected
@@ -171,11 +172,11 @@ class CaptureSection:
     # ---------------------------------------------------------------- capture
     def start(self):
         if not self.app.admin:
-            self.app.toast("La capture nécessite les droits administrateur", "err")
+            self.app.toast(_("La capture nécessite les droits administrateur"), "err")
             return
         adapter, ip = self._current()
         if not ip:
-            self.app.toast("Choisis une carte qui a une adresse IPv4", "err")
+            self.app.toast(_("Choisis une carte qui a une adresse IPv4"), "err")
             return
 
         def on_packet(raw: bytes, ts: float):
@@ -189,22 +190,22 @@ class CaptureSection:
             self.capture.start()
         except OSError as e:
             self.capture = None
-            self.app.toast(f"Capture impossible : {e}", "err")
-            self.app.log(f"Capture impossible sur {ip} : {e}", "err")
+            self.app.toast(_("Capture impossible : {0}", e), "err")
+            self.app.log(_("Capture impossible sur {0} : {1}", ip, e), "err")
             return
         if self.t0 is None:
             self.t0 = time.time()
         self.start_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal")
         self.iface.configure(state="disabled")
-        self.app.log(f"Capture démarrée sur {adapter.name} ({ip})", "accent")
+        self.app.log(_("Capture démarrée sur {0} ({1})", adapter.name, ip), "accent")
 
     def stop(self):
         if self.capture:
             self.capture.stop()
             err = self.capture.error
             self.capture = None
-            self.app.log(f"Capture arrêtée — {self.counter} paquet(s)" + (f" ({err})" if err else ""))
+            self.app.log(_("Capture arrêtée — {0} paquet(s)", self.counter) + (f" ({err})" if err else ""))
         self.start_btn.configure(state="normal")
         self.stop_btn.configure(state="disabled")
         self.iface.configure(state="normal")
@@ -222,7 +223,7 @@ class CaptureSection:
         self.t0 = time.time() if self.capture else None
         self.detail_out.clear()
         self.hex_out.clear()
-        self.stats.configure(text="Prêt", text_color=MUTED)
+        self.stats.configure(text=_("Prêt"), text_color=MUTED)
 
     def _drain(self):
         batch = []
@@ -244,7 +245,7 @@ class CaptureSection:
                     self.tree.see(kids[-1])
         self._update_stats()
         if self.capture and self.capture.error:
-            self.app.toast(f"Capture interrompue : {self.capture.error}", "err")
+            self.app.toast(_("Capture interrompue : {0}", self.capture.error), "err")
             self.stop()
         self.f.after(200, self._drain)
 
@@ -287,9 +288,9 @@ class CaptureSection:
         rate = (self.counter - c_old) / (now - t_old) if now > t_old else 0
         shown = len(self.tree.get_children())
         top = " · ".join(f"{k} {v * 100 // n}%" for k, v in self.proto_count.most_common(4))
-        size = f"{self.bytes / 1e6:.1f} Mo" if self.bytes > 1e6 else f"{self.bytes / 1e3:.0f} ko"
-        state = "● capture" if self.capture else "arrêtée"
-        self.stats.configure(text=f"{state} · {n} paquet(s), {shown} affiché(s) · {size} · {rate:.0f} pkt/s · {top}",
+        size = _("{0:.1f} Mo", self.bytes / 1e6) if self.bytes > 1e6 else _("{0:.0f} ko", self.bytes / 1e3)
+        state = _("● capture") if self.capture else _("arrêtée")
+        self.stats.configure(text=_("{0} · {1} paquet(s), {2} affiché(s) · {3} · {4:.0f} pkt/s · {5}", state, n, shown, size, rate, top),
                              text_color=GREEN if self.capture else MUTED)
 
     # ----------------------------------------------------------------- filtre
@@ -318,8 +319,7 @@ class CaptureSection:
         if not p:
             return
         self.detail_out.clear()
-        self.detail_out.write(f"Paquet n°{p.no} · {time.strftime('%H:%M:%S', time.localtime(p.ts))}"
-                              f".{int(p.ts % 1 * 1000):03d} · {p.length} octets", "accent")
+        self.detail_out.write(_("Paquet n°{0} · {1}.{2:03d} · {3} octets", p.no, time.strftime('%H:%M:%S', time.localtime(p.ts)), int(p.ts % 1 * 1000), p.length), "accent")
         for k, v in p.details:
             self.detail_out.write(f"{k:<16} {v}")
         self.hex_out.clear()
@@ -334,15 +334,15 @@ class CaptureSection:
             return
         self.tree.selection_set(row)
         m = tk.Menu(self.f, tearoff=0)
-        m.add_command(label=f"Filtrer sur {p.src}", command=lambda: self._set_filter(f"host {p.src}"))
-        m.add_command(label=f"Filtrer sur {p.dst}", command=lambda: self._set_filter(f"host {p.dst}"))
+        m.add_command(label=_("Filtrer sur {0}", p.src), command=lambda: self._set_filter(f"host {p.src}"))
+        m.add_command(label=_("Filtrer sur {0}", p.dst), command=lambda: self._set_filter(f"host {p.dst}"))
         if p.sport is not None:
-            m.add_command(label=f"Filtrer cette conversation ({p.sport} ↔ {p.dport})",
+            m.add_command(label=_("Filtrer cette conversation ({0} ↔ {1})", p.sport, p.dport),
                           command=lambda: self._set_filter(f"host {p.src} host {p.dst} port {p.sport} port {p.dport}"))
         m.add_separator()
-        m.add_command(label="Copier la ligne", command=lambda: self.app.copy(
+        m.add_command(label=_("Copier la ligne"), command=lambda: self.app.copy(
             "\t".join(str(v) for v in self.tree.item(row, "values"))))
-        m.add_command(label="Copier le hexdump", command=lambda: self.app.copy(cap.hexdump(p.raw), quiet=True))
+        m.add_command(label=_("Copier le hexdump"), command=lambda: self.app.copy(cap.hexdump(p.raw), quiet=True))
         m.tk_popup(event.x_root, event.y_root)
 
     def _focus_filter(self, _event=None):
@@ -353,16 +353,16 @@ class CaptureSection:
         return None
 
     def show_help(self):
-        _TextDialog(self.f, "Syntaxe du filtre", cap.FILTER_HELP)
+        _TextDialog(self.f, _("Syntaxe du filtre"), cap.FILTER_HELP)
 
     def open_file(self):
         path = filedialog.askopenfilename(
-            title="Ouvrir une capture",
-            filetypes=[("Captures", "*.pcap *.pcapng *.cap"), ("Tous les fichiers", "*.*")])
+            title=_("Ouvrir une capture"),
+            filetypes=[(_("Captures"), "*.pcap *.pcapng *.cap"), (_("Tous les fichiers"), "*.*")])
         if not path:
             return
-        if self.packets and not confirm(self.f, "Remplacer les paquets affichés ?",
-                                        f"{len(self.packets)} paquet(s) en mémoire seront remplacés.", "Ouvrir"):
+        if self.packets and not confirm(self.f, _("Remplacer les paquets affichés ?"),
+                                        _("{0} paquet(s) en mémoire seront remplacés.", len(self.packets)), _("Ouvrir")):
             return
         self.stop()
 
@@ -376,17 +376,17 @@ class CaptureSection:
             pkts, truncated = res
             self.clear()
             if not pkts:
-                self.app.toast("Fichier vide", "warn")
+                self.app.toast(_("Fichier vide"), "warn")
                 return
             self.load_packets(pkts)
-            msg = f"{len(pkts)} paquet(s) chargé(s) depuis {os.path.basename(path)}"
+            msg = _("{0} paquet(s) chargé(s) depuis {1}", len(pkts), os.path.basename(path))
             if truncated:
-                msg += f" ({truncated} ignoré(s) au-delà de {MAX_PACKETS})"
+                msg += _(" ({0} ignoré(s) au-delà de {1})", truncated, MAX_PACKETS)
             self.app.toast(msg, "warn" if truncated else "ok")
             self.app.log(msg)
 
-        self.app.bg(work, done, busy=f"Lecture de {os.path.basename(path)}…",
-                    error=lambda e: self.app.toast(f"Lecture impossible : {e}", "err"))
+        self.app.bg(work, done, busy=_("Lecture de {0}…", os.path.basename(path)),
+                    error=lambda e: self.app.toast(_("Lecture impossible : {0}", e), "err"))
 
     def load_packets(self, pkts: list[cap.Packet]):
         """Affiche une liste de paquets déjà décodés (fichier ouvert, démonstration)."""
@@ -402,22 +402,22 @@ class CaptureSection:
     def show_stats(self):
         shown = [self.by_iid[i] for i in self.tree.get_children() if i in self.by_iid]
         if not shown:
-            self.app.toast("Aucun paquet à analyser", "warn")
+            self.app.toast(_("Aucun paquet à analyser"), "warn")
             return
         st = cap.statistics(shown)
         hb = cap.human_bytes
         flt = self.filter_entry.get().strip()
-        lines = [f"{st['packets']} paquet(s) affiché(s) · {hb(st['bytes'])}" + (f" · filtre : {flt}" if flt else ""),
+        lines = [_("{0} paquet(s) affiché(s) · {1}", st['packets'], hb(st['bytes'])) + (_(" · filtre : {0}", flt) if flt else ""),
                  "", "PROTOCOLES", f"  {'Protocole':<14}{'Paquets':>9}{'Octets':>12}{'Part':>8}"]
         for name, n, b in st["protocols"][:15]:
             lines.append(f"  {name:<14}{n:>9}{hb(b):>12}{b * 100 / max(1, st['bytes']):>7.0f}%")
-        lines += ["", "CONVERSATIONS (top 20)", f"  {'Adresse A':<28}{'Adresse B':<28}{'Paquets':>9}{'Octets':>12}"]
+        lines += ["", _("CONVERSATIONS (top 20)"), f"  {'Adresse A':<28}{'Adresse B':<28}{'Paquets':>9}{'Octets':>12}"]
         for (a, b), n, by in st["conversations"][:20]:
             lines.append(f"  {a:<28}{b:<28}{n:>9}{hb(by):>12}")
-        lines += ["", "MACHINES (top 20)", f"  {'Adresse':<40}{'Paquets':>9}{'Octets':>12}"]
+        lines += ["", _("MACHINES (top 20)"), f"  {'Adresse':<40}{'Paquets':>9}{'Octets':>12}"]
         for h, n, by in st["hosts"][:20]:
             lines.append(f"  {h:<40}{n:>9}{hb(by):>12}")
-        _TextDialog(self.f, "Statistiques de capture", "\n".join(lines), width=820, height=560)
+        _TextDialog(self.f, _("Statistiques de capture"), "\n".join(lines), width=820, height=560)
 
     def _set_filter(self, expr):
         self.filter_entry.delete(0, "end")
@@ -428,41 +428,40 @@ class CaptureSection:
     def export(self) -> str | None:
         rows = [self.by_iid[i] for i in self.tree.get_children() if i in self.by_iid]
         if not rows:
-            self.app.toast("Aucun paquet à exporter", "warn")
+            self.app.toast(_("Aucun paquet à exporter"), "warn")
             return None
         path = filedialog.asksaveasfilename(
-            title="Exporter la capture", defaultextension=".pcap",
+            title=_("Exporter la capture"), defaultextension=".pcap",
             initialfile=f"capture-{time.strftime('%Y%m%d-%H%M%S')}.pcap",
-            filetypes=[("Capture pcap", "*.pcap"), ("Tous les fichiers", "*.*")])
+            filetypes=[(_("Capture pcap"), "*.pcap"), (_("Tous les fichiers"), "*.*")])
         if not path:
             return None
         n = cap.write_pcap(path, rows)
         skipped = len(rows) - n
-        note = f" — {skipped} trame(s) non IPv4 ignorée(s)" if skipped else ""
-        self.app.toast(f"{n} paquet(s) exporté(s) vers {os.path.basename(path)}{note}", "warn" if skipped else "ok")
-        self.app.log(f"Capture exportée : {path} ({n} paquets){note}")
+        note = _(" — {0} trame(s) non IPv4 ignorée(s)", skipped) if skipped else ""
+        self.app.toast(_("{0} paquet(s) exporté(s) vers {1}{2}", n, os.path.basename(path), note), "warn" if skipped else "ok")
+        self.app.log(_("Capture exportée : {0} ({1} paquets){2}", path, n, note))
         exe = cap.find_wireshark()
-        if exe and confirm(self.f, "Ouvrir dans Wireshark ?", f"{n} paquet(s) exporté(s). Ouvrir le fichier "
-                                                              "dans Wireshark ?", "Ouvrir"):
+        if exe and confirm(self.f, _("Ouvrir dans Wireshark ?"), _("{0} paquet(s) exporté(s). Ouvrir le fichier dans Wireshark ?", n), _("Ouvrir")):
             cap.launch_wireshark(exe, pcap=path)
         return path
 
     def open_wireshark(self):
         exe = cap.find_wireshark()
         if not exe:
-            if confirm(self.f, "Wireshark n'est pas installé",
-                       "Wireshark (avec Npcap) permet une capture complète : Ethernet, ARP, VLAN, Wi-Fi… "
-                       "Ouvrir la page de téléchargement ?", "Télécharger"):
+            if confirm(self.f, _("Wireshark n'est pas installé"),
+                       _("Wireshark (avec Npcap) permet une capture complète : Ethernet, ARP, VLAN, Wi-Fi… "
+                       "Ouvrir la page de téléchargement ?"), _("Télécharger")):
                 webbrowser.open("https://www.wireshark.org/download.html")
             return
-        adapter, _ = self._current()
+        adapter, _ip = self._current()
         adapter = adapter or self.app.selected
         if not adapter:
             cap.launch_wireshark(exe)
             return
         cap.launch_wireshark(exe, interface_guid=adapter.guid)
-        self.app.toast(f"Wireshark lancé en capture sur {adapter.name}", "ok")
-        self.app.log(f"Wireshark lancé sur {adapter.name} ({cap.npcap_interface(adapter.guid)})")
+        self.app.toast(_("Wireshark lancé en capture sur {0}", adapter.name), "ok")
+        self.app.log(_("Wireshark lancé sur {0} ({1})", adapter.name, cap.npcap_interface(adapter.guid)))
 
     # ------------------------------------------------------------------ thème
     def restyle(self):
@@ -495,8 +494,8 @@ class _TextDialog(ctk.CTkToplevel):
         out.see("1.0")
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.grid(row=2, column=0, sticky="ew", padx=18, pady=12)
-        button(bar, "Fermer", self.destroy, kind="primary", width=100).pack(side="right")
-        button(bar, "Copier", lambda: (self.clipboard_clear(), self.clipboard_append(text)), width=90).pack(
+        button(bar, _("Fermer"), self.destroy, kind="primary", width=100).pack(side="right")
+        button(bar, _("Copier"), lambda: (self.clipboard_clear(), self.clipboard_append(text)), width=90).pack(
             side="right", padx=(0, 8))
         self.bind("<Escape>", lambda e: self.destroy())
         self.after(80, self.lift)

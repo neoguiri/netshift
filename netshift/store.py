@@ -8,6 +8,8 @@ import time
 import uuid
 from pathlib import Path
 
+from .i18n import _
+
 
 def app_dir() -> Path:
     if getattr(sys, "frozen", False):
@@ -56,11 +58,11 @@ EMPTY_CONFIG = {
 }
 
 DEFAULT_PRESETS = [
-    {"name": "DHCP automatique", "description": "IP et DNS fournis par le serveur DHCP",
+    {"name": _("DHCP automatique"), "description": _("IP et DNS fournis par le serveur DHCP"),
      "config": {**EMPTY_CONFIG, "mode": "dhcp", "mask": "", "dns_mode": "auto"}},
-    {"name": "Box 192.168.1.x", "description": "Exemple : réseau domestique classique",
+    {"name": _("Box 192.168.1.x"), "description": _("Exemple : réseau domestique classique"),
      "config": {**EMPTY_CONFIG, "ip": "192.168.1.50", "gateway": "192.168.1.1", "dns1": "192.168.1.1", "dns2": "1.1.1.1"}},
-    {"name": "Lien direct 10.0.0.x", "description": "Exemple : câble direct vers un équipement, sans passerelle",
+    {"name": _("Lien direct 10.0.0.x"), "description": _("Exemple : câble direct vers un équipement, sans passerelle"),
      "config": {**EMPTY_CONFIG, "ip": "10.0.0.10", "mask": "255.255.255.0"}},
 ]
 
@@ -84,7 +86,7 @@ def summarize(cfg: dict) -> str:
     if cfg["mode"] == "dhcp":
         s = "DHCP"
         if cfg["dns_mode"] == "static" and cfg["dns1"]:
-            s += f" · DNS {cfg['dns1']}"
+            s += _(" · DNS {0}", cfg['dns1'])
         return s
     try:
         from .netbackend import parse_mask
@@ -93,18 +95,18 @@ def summarize(cfg: dict) -> str:
         pfx = ""
     s = f"{cfg['ip'] or '?'}{pfx}"
     if cfg["gateway"]:
-        s += f" · GW {cfg['gateway']}"
+        s += _(" · GW {0}", cfg['gateway'])
     if cfg["extra_ips"]:
-        s += f" · +{len(cfg['extra_ips'])} IP"
+        s += _(" · +{0} IP", len(cfg['extra_ips']))
     if cfg.get("adv") and str(cfg.get("metric", "auto")) != "auto":
-        s += f" · métrique {cfg['metric']}"
+        s += _(" · métrique {0}", cfg['metric'])
     v6 = cfg["v6"]["mode"]
     if v6 == "static":
-        s += f" · IPv6 {cfg['v6']['ip']}/{cfg['v6']['prefix']}"
+        s += _(" · IPv6 {0}/{1}", cfg['v6']['ip'], cfg['v6']['prefix'])
     elif v6 == "auto":
-        s += " · IPv6 auto"
+        s += _(" · IPv6 auto")
     elif v6 == "disabled":
-        s += " · IPv6 off"
+        s += _(" · IPv6 off")
     return s
 
 
@@ -137,7 +139,7 @@ class PresetStore:
     @staticmethod
     def _fix(p: dict) -> dict:
         p.setdefault("id", uuid.uuid4().hex[:12])
-        p.setdefault("name", "Sans nom")
+        p.setdefault("name", _("Sans nom"))
         p.setdefault("description", "")
         p.setdefault("adapter", None)   # {"guid", "name"} de la carte par défaut, ou None
         p["config"] = normalize_config(p.get("config"))
@@ -162,7 +164,7 @@ class PresetStore:
         return f"{base} ({i})"
 
     def add(self, name: str, config: dict, description: str = "") -> dict:
-        p = self._fix({"name": self.unique_name(name.strip() or "Nouveau preset"), "description": description,
+        p = self._fix({"name": self.unique_name(name.strip() or _("Nouveau preset")), "description": description,
                        "config": dict(config)})
         p["id"] = uuid.uuid4().hex[:12]
         self.presets.append(p)
@@ -198,7 +200,7 @@ class PresetStore:
         n = 0
         for p in items:
             if isinstance(p, dict) and "config" in p:
-                self.add(p.get("name", "Importé"), p["config"], p.get("description", ""))
+                self.add(p.get("name", _("Importé")), p["config"], p.get("description", ""))
                 n += 1
         return n
 

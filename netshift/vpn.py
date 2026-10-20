@@ -8,12 +8,13 @@ import re
 from dataclasses import dataclass, field
 
 from . import netbackend as nb
+from .i18n import _
 
-TUNNEL_TYPES = {"Automatic": "Automatique", "Ikev2": "IKEv2", "Sstp": "SSTP", "L2tp": "L2TP/IPsec", "Pptp": "PPTP"}
+TUNNEL_TYPES = {"Automatic": _("Automatique"), "Ikev2": "IKEv2", "Sstp": "SSTP", "L2tp": "L2TP/IPsec", "Pptp": "PPTP"}
 AUTH_METHODS = {"MSChapv2": "MS-CHAP v2", "Eap": "EAP", "Pap": "PAP", "Chap": "CHAP",
-                "MachineCertificate": "Certificat machine"}
-ENCRYPTION = {"Required": "Requis", "Maximum": "Maximal", "Optional": "Optionnel", "NoEncryption": "Aucun",
-              "Custom": "Personnalisé"}
+                "MachineCertificate": _("Certificat machine")}
+ENCRYPTION = {"Required": _("Requis"), "Maximum": _("Maximal"), "Optional": _("Optionnel"), "NoEncryption": _("Aucun"),
+              "Custom": _("Personnalisé")}
 
 
 @dataclass
@@ -97,7 +98,7 @@ def parse_list(out: str) -> list[Vpn]:
 def list_vpns() -> list[Vpn]:
     code, out = nb.run_ps(_PS_LIST, timeout=30)
     if code != 0 and "[" not in out:
-        raise RuntimeError(out or "Impossible de lire les connexions VPN")
+        raise RuntimeError(out or _("Impossible de lire les connexions VPN"))
     return parse_list(out)
 
 
@@ -108,35 +109,35 @@ def validate(cfg: dict, existing_names: set[str] | None = None) -> tuple[list[st
     errors, warns = [], []
     name = (cfg.get("name") or "").strip()
     if not name:
-        errors.append("Nom de la connexion manquant")
+        errors.append(_("Nom de la connexion manquant"))
     elif any(c in name for c in '\\/:*?"<>|'):
-        errors.append('Le nom ne peut pas contenir \\ / : * ? " < > |')
+        errors.append(_('Le nom ne peut pas contenir \\ / : * ? " < > |'))
     elif existing_names and name in existing_names:
-        errors.append(f"Une connexion « {name} » existe déjà")
+        errors.append(_("Une connexion « {0} » existe déjà", name))
     if not (cfg.get("server") or "").strip():
-        errors.append("Adresse du serveur manquante")
+        errors.append(_("Adresse du serveur manquante"))
     tunnel = cfg.get("tunnel", "Automatic")
     if tunnel not in TUNNEL_TYPES:
-        errors.append(f"Type de tunnel inconnu : {tunnel}")
+        errors.append(_("Type de tunnel inconnu : {0}", tunnel))
     if cfg.get("auth", "MSChapv2") not in AUTH_METHODS:
-        errors.append(f"Méthode d'authentification inconnue : {cfg.get('auth')}")
+        errors.append(_("Méthode d'authentification inconnue : {0}", cfg.get('auth')))
     if cfg.get("encryption", "Required") not in ENCRYPTION:
-        errors.append(f"Niveau de chiffrement inconnu : {cfg.get('encryption')}")
+        errors.append(_("Niveau de chiffrement inconnu : {0}", cfg.get('encryption')))
     if cfg.get("psk") and tunnel != "L2tp":
-        errors.append("La clé pré-partagée ne s'utilise qu'avec L2TP/IPsec")
+        errors.append(_("La clé pré-partagée ne s'utilise qu'avec L2TP/IPsec"))
     if tunnel == "Pptp":
-        warns.append("PPTP est obsolète et peu sûr : préfère IKEv2 ou SSTP si le serveur le permet")
+        warns.append(_("PPTP est obsolète et peu sûr : préfère IKEv2 ou SSTP si le serveur le permet"))
     if cfg.get("encryption") == "NoEncryption":
-        warns.append("Sans chiffrement, le trafic du VPN circule en clair")
+        warns.append(_("Sans chiffrement, le trafic du VPN circule en clair"))
     if tunnel == "Ikev2" and cfg.get("auth") in ("Pap", "Chap", "MSChapv2"):
-        warns.append("IKEv2 s'utilise en général avec EAP ou un certificat machine")
+        warns.append(_("IKEv2 s'utilise en général avec EAP ou un certificat machine"))
     for r in cfg.get("routes") or []:
         try:
             ipaddress.ip_network(r.strip(), strict=False)
         except ValueError:
-            errors.append(f"Route invalide : {r} (format attendu : 10.0.0.0/8)")
+            errors.append(_("Route invalide : {0} (format attendu : 10.0.0.0/8)", r))
     if cfg.get("routes") and not cfg.get("split"):
-        warns.append("Les routes ne servent qu'avec le split tunneling activé")
+        warns.append(_("Les routes ne servent qu'avec le split tunneling activé"))
     return errors, warns
 
 
@@ -220,14 +221,14 @@ def _mask_psk(cmd: str) -> str:
 #  Connexion / déconnexion
 # --------------------------------------------------------------------------- #
 RASDIAL_ERRORS = {
-    "691": "Identifiant ou mot de passe refusé",
-    "800": "Le serveur VPN ne répond pas (adresse, pare-feu ou type de tunnel)",
-    "809": "Connexion bloquée en chemin (NAT/pare-feu, ports IPsec UDP 500/4500)",
-    "789": "Échec de la négociation L2TP/IPsec (clé pré-partagée ou certificat)",
-    "812": "Connexion refusée par la stratégie du serveur",
-    "868": "Nom du serveur introuvable (DNS)",
-    "13801": "Certificat IKE invalide ou non approuvé",
-    "703": "Identifiants requis : utilise « Connecter avec la fenêtre Windows » ou saisis-les",
+    "691": _("Identifiant ou mot de passe refusé"),
+    "800": _("Le serveur VPN ne répond pas (adresse, pare-feu ou type de tunnel)"),
+    "809": _("Connexion bloquée en chemin (NAT/pare-feu, ports IPsec UDP 500/4500)"),
+    "789": _("Échec de la négociation L2TP/IPsec (clé pré-partagée ou certificat)"),
+    "812": _("Connexion refusée par la stratégie du serveur"),
+    "868": _("Nom du serveur introuvable (DNS)"),
+    "13801": _("Certificat IKE invalide ou non approuvé"),
+    "703": _("Identifiants requis : utilise « Connecter avec la fenêtre Windows » ou saisis-les"),
 }
 
 

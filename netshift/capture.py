@@ -12,6 +12,8 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
+from .i18n import _
+
 PROTO_NAMES = {1: "ICMP", 2: "IGMP", 6: "TCP", 17: "UDP", 47: "GRE", 50: "ESP", 58: "ICMPv6", 89: "OSPF", 132: "SCTP"}
 TCP_FLAGS = [(0x01, "FIN"), (0x02, "SYN"), (0x04, "RST"), (0x08, "PSH"), (0x10, "ACK"), (0x20, "URG")]
 ICMP_TYPES = {0: "Echo reply", 3: "Destination unreachable", 5: "Redirect", 8: "Echo request", 11: "Time exceeded"}
@@ -48,7 +50,7 @@ def decode(raw: bytes, no: int = 0, ts: float | None = None) -> Packet:
     p = Packet(no=no, ts=time.time() if ts is None else ts, raw=raw, length=len(raw))
     if len(raw) < 20 or raw[0] >> 4 != 4:
         p.proto = p.transport = "?"
-        p.info = "Paquet non IPv4"
+        p.info = _("Paquet non IPv4")
         return p
     ihl = (raw[0] & 0x0F) * 4
     total_len, ident, frag, ttl, proto_num = struct.unpack("!HHHBB", raw[2:10])
@@ -86,7 +88,8 @@ def decode(raw: bytes, no: int = 0, ts: float | None = None) -> Packet:
             if first[:4] in (b"GET ", b"POST", b"HTTP", b"PUT ", b"HEAD", b"DELE", b"OPTI"):
                 p.info = first.decode("latin-1", errors="replace")
         p.details += [("TCP", f"{sport} → {dport}"), ("Flags", " ".join(p.flags) or "—"),
-                      ("Séquence / ACK", f"{seq} / {ack}"), ("Fenêtre", str(win)), ("Données", f"{data_len} octets")]
+                      (_("Séquence / ACK"), f"{seq} / {ack}"), (_("Fenêtre"), str(win)),
+                      (_("Données"), _("{0} octets", data_len))]
     elif proto_num == 17 and len(payload) >= 8:
         sport, dport, ulen = struct.unpack("!HHH", payload[:6])
         p.sport, p.dport = sport, dport
@@ -129,7 +132,7 @@ def _dns_name(data: bytes, off: int, depth: int = 0) -> tuple[str, int]:
             if off + 1 >= len(data):
                 break
             ptr = ((n & 0x3F) << 8) | data[off + 1]
-            name, _ = _dns_name(data, ptr, depth + 1)
+            name, _end = _dns_name(data, ptr, depth + 1)
             labels.append(name)
             return ".".join(labels), off + 2
         labels.append(data[off + 1:off + 1 + n].decode("ascii", errors="replace"))
@@ -148,11 +151,11 @@ def _dns_summary(data: bytes) -> str:
         qtype = struct.unpack("!H", data[off:off + 2])[0] if off + 2 <= len(data) else 0
     except (IndexError, struct.error):
         return ""
-    kind = "Réponse" if flags & 0x8000 else "Requête"
+    kind = _("Réponse") if flags & 0x8000 else _("Requête")
     rtype = DNS_TYPES.get(qtype, str(qtype))
     rcode = flags & 0x000F
-    tail = f" ({an} réponse(s))" if flags & 0x8000 and not rcode else (" NXDOMAIN" if rcode == 3 else "")
-    return f"{kind} DNS 0x{tid:04x} {rtype} {name}{tail}"
+    tail = _(" ({0} réponse(s))", an) if flags & 0x8000 and not rcode else (" NXDOMAIN" if rcode == 3 else "")
+    return _("{0} DNS 0x{1:04x} {2} {3}{4}", kind, tid, rtype, name, tail)
 
 
 ETHERTYPES = {0x0800: "IPv4", 0x0806: "ARP", 0x86DD: "IPv6", 0x8100: "VLAN", 0x88CC: "LLDP", 0x8899: "Realtek",
@@ -180,7 +183,7 @@ def decode_frame(frame: bytes, linktype: int, no: int = 0, ts: float | None = No
         payload = frame[off:]
     else:
         p = Packet(no=no, ts=time.time() if ts is None else ts, raw=frame, length=len(frame), proto="?",
-                   transport="?", info=f"Type de lien {linktype} non pris en charge", exportable=False)
+                   transport="?", info=_("Type de lien {0} non pris en charge", linktype), exportable=False)
         return p
 
     if ethertype == 0x0800:
@@ -189,12 +192,12 @@ def decode_frame(frame: bytes, linktype: int, no: int = 0, ts: float | None = No
         op = struct.unpack("!H", payload[6:8])[0]
         sha, spa, tha, tpa = payload[8:14], payload[14:18], payload[18:24], payload[24:28]
         src, dst = socket.inet_ntoa(spa), socket.inet_ntoa(tpa)
-        info = (f"Qui a {dst} ? Répondre à {src}" if op == 1 else f"{src} est à {_mac(sha)}" if op == 2
-                else f"ARP opération {op}")
+        info = (_("Qui a {0} ? Répondre à {1}", dst, src) if op == 1 else _("{0} est à {1}", src, _mac(sha))
+                if op == 2 else _("ARP opération {0}", op))
         p = Packet(no=no, ts=time.time() if ts is None else ts, raw=payload, src=src, dst=dst, proto="ARP",
                    transport="ARP", length=len(frame), info=info, exportable=False,
-                   details=[("ARP", "requête" if op == 1 else "réponse" if op == 2 else str(op)),
-                            ("Émetteur", f"{src} ({_mac(sha)})"), ("Cible", f"{dst} ({_mac(tha)})")])
+                   details=[("ARP", _("requête") if op == 1 else _("réponse") if op == 2 else str(op)),
+                            (_("Émetteur"), f"{src} ({_mac(sha)})"), (_("Cible"), f"{dst} ({_mac(tha)})")])
     elif ethertype == 0x86DD and len(payload) >= 40:
         nxt, hop = payload[6], payload[7]
         src = socket.inet_ntop(socket.AF_INET6, payload[8:24])
@@ -211,7 +214,7 @@ def decode_frame(frame: bytes, linktype: int, no: int = 0, ts: float | None = No
             p.info = f"{p.sport} → {p.dport}" + (f" [{', '.join(p.flags)}]" if p.flags else "")
         else:
             p.info = f"IPv6 {tname}"
-        p.details = [("IPv6", f"{src} → {dst}"), ("Hop limit", str(hop)), ("En-tête suivant", tname)]
+        p.details = [("IPv6", f"{src} → {dst}"), ("Hop limit", str(hop)), (_("En-tête suivant"), tname)]
     else:
         name = ETHERTYPES.get(ethertype, f"0x{ethertype:04x}")
         src = _mac(frame[6:12]) if linktype == 1 else ""
@@ -239,7 +242,7 @@ def read_capture_file(path: str) -> list[tuple[float, int, bytes]]:
     formats = {b"\xd4\xc3\xb2\xa1": ("<", 1e-6), b"\xa1\xb2\xc3\xd4": (">", 1e-6),
                b"\x4d\x3c\xb2\xa1": ("<", 1e-9), b"\xa1\xb2\x3c\x4d": (">", 1e-9)}
     if magic not in formats:
-        raise ValueError("Format non reconnu (pcap ou pcapng attendu)")
+        raise ValueError(_("Format non reconnu (pcap ou pcapng attendu)"))
     e, unit = formats[magic]
     linktype = struct.unpack(e + "I", data[20:24])[0] & 0x0FFFFFFF
     off, out = 24, []
@@ -304,7 +307,7 @@ class FilterError(ValueError):
     pass
 
 
-FILTER_HELP = """Termes combinés en ET ; « or » (ou « || ») sépare des alternatives.
+FILTER_HELP = _("""Termes combinés en ET ; « or » (ou « || ») sépare des alternatives.
 
   tcp  udp  icmp  igmp          protocole de transport
   dns  http  tls  ssh  arp …    protocole applicatif (colonne Proto)
@@ -320,7 +323,7 @@ Exemples :
   tcp port 443
   dns or icmp
   host 192.168.1.10 not port 22
-  rst or unreachable            (erreurs de connexion)"""
+  rst or unreachable            (erreurs de connexion)""")
 
 
 def compile_filter(expr: str) -> Callable[[Packet], bool]:
@@ -332,7 +335,7 @@ def compile_filter(expr: str) -> Callable[[Packet], bool]:
         else:
             groups[-1].append(tok)
     if len(groups) > 1 and any(not g for g in groups):
-        raise FilterError("« or » doit relier deux conditions")
+        raise FilterError(_("« or » doit relier deux conditions"))
     compiled = [_compile_and(g) for g in groups]
     if len(compiled) == 1:
         return compiled[0]
@@ -349,7 +352,7 @@ def _compile_and(tokens: list[str]) -> Callable[[Packet], bool]:
             neg = True
             i += 1
             if i >= len(tokens):
-                raise FilterError("« not » doit être suivi d'un terme")
+                raise FilterError(_("« not » doit être suivi d'un terme"))
             t = tokens[i].lower()
         elif t.startswith("!") and len(t) > 1:
             neg, t = True, t[1:]
@@ -358,7 +361,7 @@ def _compile_and(tokens: list[str]) -> Callable[[Packet], bool]:
             continue
         if t in ("port", "host", "src", "dst", "net"):
             if i + 1 >= len(tokens):
-                raise FilterError(f"« {t} » attend une valeur")
+                raise FilterError(_("« {0} » attend une valeur", t))
             test = _keyword_test(t, tokens[i + 1])
             i += 2
         else:
@@ -373,7 +376,7 @@ def _keyword_test(kw: str, value: str) -> Callable[[Packet], bool]:
         try:
             port = int(value)
         except ValueError:
-            raise FilterError(f"Port invalide : {value}") from None
+            raise FilterError(_("Port invalide : {0}", value)) from None
         return lambda p: port in (p.sport, p.dport)
     net = _parse_net(value)
     if kw == "src":
@@ -405,7 +408,7 @@ def _parse_net(v: str) -> ipaddress.IPv4Network:
     try:
         return ipaddress.IPv4Network(v, strict=False)
     except ValueError:
-        raise FilterError(f"Adresse ou réseau invalide : {v}") from None
+        raise FilterError(_("Adresse ou réseau invalide : {0}", v)) from None
 
 
 def _in(ip: str, net: ipaddress.IPv4Network) -> bool:
@@ -443,10 +446,10 @@ def read_pcap(path: str) -> list[bytes]:
         data = f.read()
     magic = struct.unpack("<I", data[:4])[0]
     if magic != 0xA1B2C3D4:
-        raise ValueError("Format pcap non supporté")
+        raise ValueError(_("Format pcap non supporté"))
     off, out = 24, []
     while off + 16 <= len(data):
-        _, _, incl, _ = struct.unpack("<IIII", data[off:off + 16])
+        _sec, _usec, incl, _orig = struct.unpack("<IIII", data[off:off + 16])
         out.append(data[off + 16:off + 16 + incl])
         off += 16 + incl
     return out

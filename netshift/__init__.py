@@ -1,3 +1,3 @@
 """NetShift - gestion des configurations IP des cartes réseau Windows."""
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"

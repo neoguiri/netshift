@@ -51,10 +51,26 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). In short: `netbackend.py` talk
 - Follow the existing style (ruff config in `pyproject.toml`, line length 120).
 - UI strings are currently French; keep new strings easy to extract for future i18n.
 
+## Translations
+
+French is the source language: UI strings are written in French and wrapped with `_()` from `netshift/i18n.py`
+(`_("Prêt")`, `_("{0} carte(s) réseau détectée(s)", n)`). Each other language is a catalog
+`netshift/locales/<code>.py` mapping every French string to its translation.
+
+To add a language:
+
+1. Copy `netshift/locales/en.py` to `netshift/locales/<code>.py` and translate the values (keep `{0}`, `{1:.0f}`…
+   placeholders and leading/trailing spaces and line breaks).
+2. Add the code to `LANGUAGES` in `netshift/i18n.py`.
+3. Run `pytest`: `tests/test_i18n.py` fails if a string is missing, unused, or has mismatched placeholders.
+4. Optionally regenerate screenshots with `NETSHIFT_LANG=<code>` (they go to `docs/screenshots/<code>/`).
+
+When you add UI text, wrap it with `_()` and add the English translation to `locales/en.py` (the test will remind you).
+
 ## Screenshots
 
 `python scripts/make_screenshots.py` regenerates `docs/screenshots/` using **fictitious** data only:
-no real adapter, network or host information is captured. Set `THEME=light` for the light variants.
+no real adapter, network or host information is captured. Set `THEME=light` for the light variants and `NETSHIFT_LANG=en` for the English set (`docs/screenshots/en/`).
 
 The script renders the app window itself (Win32 `PrintWindow`), so other windows on your screen can never
 end up in an image. `tests/test_screenshots.py` additionally fails if any committed screenshot is not purely

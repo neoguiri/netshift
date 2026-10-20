@@ -9,6 +9,7 @@ from tkinter import ttk
 import customtkinter as ctk
 
 from . import netbackend as nb
+from .i18n import _
 from .store import EMPTY_CONFIG, PUBLIC_DNS, normalize_config
 
 # --------------------------------------------------------------------------- #
@@ -76,19 +77,45 @@ def label(master, text="", font=None, color=TEXT, **kw) -> ctk.CTkLabel:
     return ctk.CTkLabel(master, text=text, font=font or Fonts.body, text_color=color, **kw)
 
 
+BUTTON_STYLES = {
+    "primary": dict(fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color=("#FFFFFF", "#FFFFFF")),
+    "secondary": dict(fg_color=SURFACE2, hover_color=HOVER, text_color=TEXT, border_width=1, border_color=BORDER),
+    "ghost": dict(fg_color="transparent", hover_color=HOVER, text_color=TEXT),
+    "danger": dict(fg_color=RED_SOFT, hover_color=("#FECACA", "#4A1F22"), text_color=RED),
+    "success": dict(fg_color=GREEN, hover_color=("#166534", "#16A34A"), text_color=("#FFFFFF", "#0B1F12")),
+}
+# Désactivé : fond neutre + texte atténué (un texte gris sur fond vert/bleu/rouge est illisible)
+DISABLED_LOOK = dict(fg_color=SURFACE2, border_width=1, border_color=BORDER)
+DISABLED_TEXT = ("#9CA3AF", "#6B7280")
+
+
+class StyledButton(ctk.CTkButton):
+    """Bouton coloré qui prend un aspect neutre et lisible quand il est désactivé."""
+
+    def __init__(self, *args, kind: str = "secondary", **kw):
+        self._kind_look = {k: kw.get(k, BUTTON_STYLES[kind].get(k)) for k in ("fg_color", "border_width", "border_color")}
+        self._colored = kind in ("primary", "danger", "success")
+        super().__init__(*args, text_color_disabled=DISABLED_TEXT, **kw)
+        if kw.get("state") == "disabled":
+            self._apply_look("disabled")
+
+    def _apply_look(self, state):
+        if not self._colored:
+            return
+        look = DISABLED_LOOK if state == "disabled" else {k: v for k, v in self._kind_look.items() if v is not None}
+        super().configure(**look)
+
+    def configure(self, require_redraw=False, **kwargs):
+        super().configure(require_redraw=require_redraw, **kwargs)
+        if "state" in kwargs:
+            self._apply_look(kwargs["state"])
+
+
 def button(master, text, command=None, kind="secondary", width=0, **kw) -> ctk.CTkButton:
-    styles = {
-        "primary": dict(fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color=("#FFFFFF", "#FFFFFF")),
-        "secondary": dict(fg_color=SURFACE2, hover_color=HOVER, text_color=TEXT, border_width=1, border_color=BORDER),
-        "ghost": dict(fg_color="transparent", hover_color=HOVER, text_color=TEXT),
-        "danger": dict(fg_color=RED_SOFT, hover_color=("#FECACA", "#4A1F22"), text_color=RED),
-        "success": dict(fg_color=GREEN, hover_color=("#166534", "#16A34A"), text_color=("#FFFFFF", "#0B1F12")),
-    }
     opts = dict(corner_radius=8, height=32, font=Fonts.body, width=width or 0)
-    opts.update(styles[kind])
+    opts.update(BUTTON_STYLES[kind])
     opts.update(kw)
-    b = ctk.CTkButton(master, text=text, command=command, **opts)
-    return b
+    return StyledButton(master, text=text, command=command, kind=kind, **opts)
 
 
 def entry(master, placeholder="", width=200, **kw) -> ctk.CTkEntry:
@@ -223,7 +250,7 @@ def style_treeview(root: tk.Misc):
 #  Dialogues modaux
 # --------------------------------------------------------------------------- #
 class Dialog(ctk.CTkToplevel):
-    def __init__(self, master, title: str, message: str = "", ok_text="OK", cancel_text="Annuler",
+    def __init__(self, master, title: str, message: str = "", ok_text="OK", cancel_text=_("Annuler"),
                  kind="primary", input_value: str | None = None, input_label: str = "", detail: str = ""):
         super().__init__(master)
         self.result = None
@@ -289,7 +316,7 @@ class Dialog(ctk.CTkToplevel):
         return self.result
 
 
-def confirm(master, title, message, ok_text="Confirmer", kind="primary", detail="") -> bool:
+def confirm(master, title, message, ok_text=_("Confirmer"), kind="primary", detail="") -> bool:
     return bool(Dialog(master, title, message, ok_text=ok_text, kind=kind, detail=detail).show())
 
 
@@ -304,7 +331,7 @@ def ask_string(master, title, message, value="", ok_text="OK", input_label="") -
 # --------------------------------------------------------------------------- #
 #  Formulaire de configuration IP
 # --------------------------------------------------------------------------- #
-V6_LABELS = {"unchanged": "Inchangé", "auto": "Automatique", "static": "Statique", "disabled": "Désactivé"}
+V6_LABELS = {"unchanged": _("Inchangé"), "auto": _("Automatique"), "static": _("Statique"), "disabled": _("Désactivé")}
 _V6_KEYS = {v: k for k, v in V6_LABELS.items()}
 
 
@@ -314,15 +341,15 @@ class ConfigForm(ctk.CTkFrame):
         self.on_change = on_change
         self.grid_columnconfigure((0, 1), weight=1, uniform="cols")
 
-        self.mode = segmented(self, ["DHCP", "Statique"], command=lambda v: self._update_state())
+        self.mode = segmented(self, ["DHCP", _("Statique")], command=lambda v: self._update_state())
         self.mode.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
 
-        self.ip = self._field("Adresse IP", 1, 0, "192.168.1.50")
-        self.mask = self._field("Masque  (255.255.255.0 ou /24)", 1, 1, "255.255.255.0")
+        self.ip = self._field(_("Adresse IP"), 1, 0, "192.168.1.50")
+        self.mask = self._field(_("Masque  (255.255.255.0 ou /24)"), 1, 1, "255.255.255.0")
         self.mask_hint = label(self, "", Fonts.small, MUTED, anchor="w")
         self.mask_hint.grid(row=3, column=1, sticky="w", padx=(6, 0))
 
-        gw_label = label(self, "Passerelle", Fonts.small, MUTED, anchor="w")
+        gw_label = label(self, _("Passerelle"), Fonts.small, MUTED, anchor="w")
         gw_label.grid(row=4, column=0, sticky="w", padx=(0, 6), pady=(8, 2))
         gw_row = ctk.CTkFrame(self, fg_color="transparent")
         gw_row.grid(row=5, column=0, sticky="ew", padx=(0, 6))
@@ -336,18 +363,18 @@ class ConfigForm(ctk.CTkFrame):
         # DNS
         dns_head = ctk.CTkFrame(self, fg_color="transparent")
         dns_head.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(16, 2))
-        label(dns_head, "Serveurs DNS", Fonts.h3).pack(side="left")
-        self.dns_auto = ctk.CTkSwitch(dns_head, text="Automatiques (DHCP)", font=Fonts.small, text_color=MUTED,
+        label(dns_head, _("Serveurs DNS"), Fonts.h3).pack(side="left")
+        self.dns_auto = ctk.CTkSwitch(dns_head, text=_("Automatiques (DHCP)"), font=Fonts.small, text_color=MUTED,
                                       progress_color=ACCENT, command=self._update_state)
         self.dns_auto.pack(side="left", padx=(14, 0))
-        self.dns_preset = option_menu(dns_head, ["DNS publics…", *PUBLIC_DNS.keys()], self._pick_dns, width=140,
+        self.dns_preset = option_menu(dns_head, [_("DNS publics…"), *PUBLIC_DNS.keys()], self._pick_dns, width=140,
                                       height=28)
         self.dns_preset.pack(side="right")
 
-        self.dns1 = self._field("DNS primaire", 7, 0, "ex. 1.1.1.1")
-        self.dns2 = self._field("DNS secondaire", 7, 1, "optionnel")
+        self.dns1 = self._field(_("DNS primaire"), 7, 0, _("ex. 1.1.1.1"))
+        self.dns2 = self._field(_("DNS secondaire"), 7, 1, "optionnel")
 
-        label(self, "IP supplémentaires (une par ligne, ex. 10.0.0.5/24)", Fonts.small, MUTED, anchor="w").grid(
+        label(self, _("IP supplémentaires (une par ligne, ex. 10.0.0.5/24)"), Fonts.small, MUTED, anchor="w").grid(
             row=9, column=0, columnspan=2, sticky="w", pady=(10, 2))
         self.extra = ctk.CTkTextbox(self, height=58, font=Fonts.mono, fg_color=SURFACE2, border_color=BORDER,
                                     border_width=1, corner_radius=8, text_color=TEXT)
@@ -372,27 +399,27 @@ class ConfigForm(ctk.CTkFrame):
             self._watch(e)
             return e
 
-        self.v6_ip = v6field("Adresse IPv6", 0, 0, "ex. 2001:db8:10::25")
-        self.v6_prefix = v6field("Longueur de préfixe", 0, 1, "64")
-        self.v6_gw = v6field("Passerelle IPv6 (souvent fe80::1)", 2, 0, "optionnelle")
-        self.v6_dns1 = v6field("DNS IPv6 primaire (vide = automatiques)", 4, 0, "ex. 2606:4700:4700::1111")
-        self.v6_dns2 = v6field("DNS IPv6 secondaire", 4, 1, "optionnel")
+        self.v6_ip = v6field(_("Adresse IPv6"), 0, 0, _("ex. 2001:db8:10::25"))
+        self.v6_prefix = v6field(_("Longueur de préfixe"), 0, 1, "64")
+        self.v6_gw = v6field(_("Passerelle IPv6 (souvent fe80::1)"), 2, 0, "optionnelle")
+        self.v6_dns1 = v6field(_("DNS IPv6 primaire (vide = automatiques)"), 4, 0, _("ex. 2606:4700:4700::1111"))
+        self.v6_dns2 = v6field(_("DNS IPv6 secondaire"), 4, 1, "optionnel")
         self.v6_hint = label(self.v6_box, "", Fonts.small, MUTED, anchor="w", justify="left", wraplength=560)
         self.v6_hint.grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
-        self.adv = ctk.CTkSwitch(self, text="Options avancées : métrique d'interface et suffixe DNS",
+        self.adv = ctk.CTkSwitch(self, text=_("Options avancées : métrique d'interface et suffixe DNS"),
                                  font=Fonts.small, text_color=MUTED, progress_color=ACCENT,
                                  command=self._update_state)
         self.adv.grid(row=13, column=0, columnspan=2, sticky="w", pady=(12, 0))
         self.adv_box = ctk.CTkFrame(self, fg_color="transparent")
         self.adv_box.grid_columnconfigure((0, 1), weight=1, uniform="adv")
-        label(self.adv_box, "Métrique (auto ou 1–9999, plus petit = prioritaire)", Fonts.small, MUTED,
+        label(self.adv_box, _("Métrique (auto ou 1–9999, plus petit = prioritaire)"), Fonts.small, MUTED,
               anchor="w").grid(row=0, column=0, sticky="w", padx=(0, 6), pady=(6, 2))
-        label(self.adv_box, "Suffixe DNS de la connexion", Fonts.small, MUTED, anchor="w").grid(
+        label(self.adv_box, _("Suffixe DNS de la connexion"), Fonts.small, MUTED, anchor="w").grid(
             row=0, column=1, sticky="w", padx=(6, 0), pady=(6, 2))
         self.metric = entry(self.adv_box, "auto")
         self.metric.grid(row=1, column=0, sticky="ew", padx=(0, 6))
-        self.dns_suffix = entry(self.adv_box, "ex. corp.example (vide = aucun)")
+        self.dns_suffix = entry(self.adv_box, _("ex. corp.example (vide = aucun)"))
         self.dns_suffix.grid(row=1, column=1, sticky="ew", padx=(6, 0))
         for e in (self.metric, self.dns_suffix):
             self._watch(e)
@@ -439,11 +466,11 @@ class ConfigForm(ctk.CTkFrame):
             self._update_state()
             self._set(self.dns1, PUBLIC_DNS[name][0])
             self._set(self.dns2, PUBLIC_DNS[name][1])
-        self.dns_preset.set("DNS publics…")
+        self.dns_preset.set(_("DNS publics…"))
         self._changed()
 
     def _update_state(self):
-        static = self.mode.get() == "Statique"
+        static = self.mode.get() == _("Statique")
         st = "normal" if static else "disabled"
         for w in (self.ip, self.mask, self.gateway):
             w.configure(state=st, text_color=TEXT if static else MUTED)
@@ -468,10 +495,10 @@ class ConfigForm(ctk.CTkFrame):
             for w in (self.v6_ip, self.v6_prefix, self.v6_gw):
                 w.configure(state=st6, text_color=TEXT if st6 == "normal" else MUTED)
             self.v6_hint.configure(text=(
-                "Adresses obtenues automatiquement (annonces du routeur / DHCPv6). Les DNS IPv6 restent "
-                "automatiques si les champs DNS sont vides." if v6 == "auto" else
-                "La découverte de routeur est désactivée : seule l'adresse ci-dessus est utilisée "
-                "(l'adresse de lien local fe80:: est conservée)."))
+                _("Adresses obtenues automatiquement (annonces du routeur / DHCPv6). Les DNS IPv6 restent "
+                "automatiques si les champs DNS sont vides.") if v6 == "auto" else
+                _("La découverte de routeur est désactivée : seule l'adresse ci-dessus est utilisée "
+                "(l'adresse de lien local fe80:: est conservée).")))
         else:
             self.v6_box.grid_remove()
         self._changed()
@@ -488,7 +515,7 @@ class ConfigForm(ctk.CTkFrame):
         self._set(self.dns2, cfg["dns2"])
         self.extra.delete("1.0", "end")
         self.extra.insert("1.0", "\n".join(cfg["extra_ips"]))
-        self.mode.set("DHCP" if cfg["mode"] == "dhcp" else "Statique")
+        self.mode.set("DHCP" if cfg["mode"] == "dhcp" else _("Statique"))
         self.adv.select() if cfg.get("adv") else self.adv.deselect()
         v6 = cfg["v6"]
         self.v6_mode.set(V6_LABELS.get(v6["mode"], V6_LABELS["unchanged"]))
@@ -508,7 +535,7 @@ class ConfigForm(ctk.CTkFrame):
         self._update_state()
 
     def get_config(self) -> dict:
-        static = self.mode.get() == "Statique"
+        static = self.mode.get() == _("Statique")
         dns_static = static or not self.dns_auto.get()
         return {
             "mode": "static" if static else "dhcp",
@@ -566,10 +593,10 @@ class ConfigForm(ctk.CTkFrame):
             try:
                 p = nb.parse_mask(cfg["mask"])
                 hosts = 2 ** (32 - p) - 2 if p < 31 else 2 ** (32 - p)
-                hint = f"/{p} = {nb.prefix_to_mask(p)} · {hosts:,} hôtes".replace(",", " ")
+                hint = _("/{0} = {1} · {2:,} hôtes", p, nb.prefix_to_mask(p), hosts).replace(",", " ")
                 if _valid_ip(cfg["ip"]):
                     net = ipaddress.IPv4Network(f"{cfg['ip']}/{p}", strict=False)
-                    hint += f" · réseau {net.network_address}"
+                    hint += _(" · réseau {0}", net.network_address)
             except ValueError:
                 hint = ""
         self.mask_hint.configure(text=hint)
@@ -580,7 +607,7 @@ class ConfigForm(ctk.CTkFrame):
         elif warns:
             self.feedback.configure(text="⚠  " + "\n⚠  ".join(warns), text_color=ORANGE)
         elif has_input:
-            self.feedback.configure(text="✓  Configuration valide", text_color=GREEN)
+            self.feedback.configure(text=_("✓  Configuration valide"), text_color=GREEN)
         else:
             self.feedback.configure(text="")
         if self.on_change:

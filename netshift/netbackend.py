@@ -14,6 +14,8 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
+from .i18n import _
+
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
@@ -42,7 +44,7 @@ def run(cmd: list[str], timeout: int = 60) -> tuple[int, str]:
         )
         return p.returncode, _decode(p.stdout).strip()
     except subprocess.TimeoutExpired:
-        return 1, f"Délai dépassé ({timeout}s) : {' '.join(cmd)}"
+        return 1, _("Délai dépassé ({0}s) : {1}", timeout, ' '.join(cmd))
     except FileNotFoundError as e:
         return 1, str(e)
 
@@ -101,7 +103,7 @@ class _PSSession:
                     line = self._lines.get(timeout=max(0.1, deadline - time.monotonic()))
                 except queue.Empty:
                     self.close()
-                    return 1, f"Délai PowerShell dépassé ({timeout}s)"
+                    return 1, _("Délai PowerShell dépassé ({0}s)", timeout)
                 if line is None:
                     self._proc = None
                     return 1, "\n".join(out)
@@ -254,13 +256,13 @@ class Adapter:
 #  Type de carte (pour l'affichage et les filtres)
 # --------------------------------------------------------------------------- #
 KINDS = {  # clé : (libellé, libellé court)
-    "ethernet": ("Ethernet", "ETH"),
-    "wifi": ("Wi-Fi", "WI-FI"),
-    "mobile": ("Mobile (4G/5G)", "WWAN"),
+    "ethernet": (_("Ethernet"), "ETH"),
+    "wifi": (_("Wi-Fi"), "WI-FI"),
+    "mobile": (_("Mobile (4G/5G)"), "WWAN"),
     "vpn": ("VPN", "VPN"),
-    "bluetooth": ("Bluetooth", "BT"),
-    "virtual": ("Virtuelles", "VIRT"),
-    "other": ("Autres", "AUTRE"),
+    "bluetooth": (_("Bluetooth"), "BT"),
+    "virtual": (_("Virtuelles"), "VIRT"),
+    "other": (_("Autres"), _("AUTRE")),
 }
 
 _VPN_HINTS = ("wireguard", "wintun", "openvpn", "tap-windows", "tap adapter", "tap-protonvpn", "vpn", "anyconnect",
@@ -351,7 +353,7 @@ def _as_list(v) -> list:
 def list_adapters() -> list[Adapter]:
     code, out = run_ps(_PS_LIST, timeout=45)
     if code != 0 or not out:
-        raise RuntimeError(out or "Impossible de lire les cartes réseau")
+        raise RuntimeError(out or _("Impossible de lire les cartes réseau"))
     start = out.find("[")
     data = json.loads(out[start:]) if start >= 0 else []
     adapters = []
@@ -401,31 +403,31 @@ def parse_mask(value: str) -> int:
     """Accepte '255.255.255.0', '/24' ou '24'. Renvoie le préfixe."""
     v = value.strip().lstrip("/")
     if not v:
-        raise ValueError("Masque manquant")
+        raise ValueError(_("Masque manquant"))
     if v.isdigit():
         p = int(v)
         if not 0 <= p <= 32:
-            raise ValueError("Préfixe hors limites (0-32)")
+            raise ValueError(_("Préfixe hors limites (0-32)"))
         return p
     try:
         return ipaddress.IPv4Network(f"0.0.0.0/{v}").prefixlen
     except ValueError:
-        raise ValueError(f"Masque invalide : {value}") from None
+        raise ValueError(_("Masque invalide : {0}", value)) from None
 
 
-def check_ip(value: str, label: str = "Adresse") -> str:
+def check_ip(value: str, label: str = _("Adresse")) -> str:
     try:
         return str(ipaddress.IPv4Address(value.strip()))
     except ValueError:
-        raise ValueError(f"{label} invalide : {value or '(vide)'}") from None
+        raise ValueError(_("{0} invalide : {1}", label, value or _('(vide)'))) from None
 
 
 def split_ip_prefix(text: str, default_prefix: int) -> tuple[str, int]:
     t = text.strip()
     if "/" in t:
         ip, m = t.split("/", 1)
-        return check_ip(ip, "IP supplémentaire"), parse_mask(m)
-    return check_ip(t, "IP supplémentaire"), default_prefix
+        return check_ip(ip, _("IP supplémentaire")), parse_mask(m)
+    return check_ip(t, _("IP supplémentaire")), default_prefix
 
 
 def validate_config(cfg: dict) -> tuple[list[str], list[str]]:
@@ -433,19 +435,19 @@ def validate_config(cfg: dict) -> tuple[list[str], list[str]]:
     errors, warns = [], []
     if cfg.get("mode") == "static":
         try:
-            ip = check_ip(cfg.get("ip", ""), "Adresse IP")
+            ip = check_ip(cfg.get("ip", ""), _("Adresse IP"))
             prefix = parse_mask(cfg.get("mask", ""))
             net = ipaddress.IPv4Network(f"{ip}/{prefix}", strict=False)
             ipa = ipaddress.IPv4Address(ip)
             if prefix < 31 and ipa in (net.network_address, net.broadcast_address):
-                errors.append(f"{ip} est l'adresse réseau ou broadcast de {net}")
+                errors.append(_("{0} est l'adresse réseau ou broadcast de {1}", ip, net))
             gw = (cfg.get("gateway") or "").strip()
             if gw:
-                gwa = ipaddress.IPv4Address(check_ip(gw, "Passerelle"))
+                gwa = ipaddress.IPv4Address(check_ip(gw, _("Passerelle")))
                 if gwa not in net:
-                    warns.append(f"La passerelle {gw} n'est pas dans le sous-réseau {net}")
+                    warns.append(_("La passerelle {0} n'est pas dans le sous-réseau {1}", gw, net))
                 if gwa == ipa:
-                    errors.append("La passerelle est identique à l'adresse IP")
+                    errors.append(_("La passerelle est identique à l'adresse IP"))
             for extra in cfg.get("extra_ips") or []:
                 if extra.strip():
                     split_ip_prefix(extra, prefix)
@@ -454,13 +456,13 @@ def validate_config(cfg: dict) -> tuple[list[str], list[str]]:
     if cfg.get("adv"):
         m = str(cfg.get("metric") or "auto").strip().lower()
         if m != "auto" and not (m.isdigit() and 1 <= int(m) <= 9999):
-            errors.append("Métrique invalide : « auto » ou un entier de 1 à 9999")
+            errors.append(_("Métrique invalide : « auto » ou un entier de 1 à 9999"))
         suffix = (cfg.get("dns_suffix") or "").strip()
         if suffix and not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9-]{1,63})*\.?", suffix):
-            errors.append(f"Suffixe DNS invalide : {suffix}")
+            errors.append(_("Suffixe DNS invalide : {0}", suffix))
     errors += validate_v6(cfg.get("v6"))
     if cfg.get("dns_mode", "static") == "static" or cfg.get("mode") == "static":
-        for k, lbl in (("dns1", "DNS primaire"), ("dns2", "DNS secondaire")):
+        for k, lbl in (("dns1", _("DNS primaire")), ("dns2", _("DNS secondaire"))):
             if (cfg.get(k) or "").strip():
                 try:
                     check_ip(cfg[k], lbl)
@@ -476,7 +478,7 @@ def _check_ip6(value: str, label: str) -> str:
     try:
         return str(ipaddress.IPv6Address(value.strip().split("%")[0]))
     except ValueError:
-        raise ValueError(f"{label} invalide : {value or '(vide)'}") from None
+        raise ValueError(_("{0} invalide : {1}", label, value or _('(vide)'))) from None
 
 
 def validate_v6(v6: dict | None) -> list[str]:
@@ -484,23 +486,23 @@ def validate_v6(v6: dict | None) -> list[str]:
         return []
     errors = []
     if v6.get("mode") not in V6_MODES:
-        return [f"Mode IPv6 inconnu : {v6.get('mode')}"]
+        return [_("Mode IPv6 inconnu : {0}", v6.get('mode'))]
     if v6["mode"] == "static":
         try:
-            ip = ipaddress.IPv6Address(_check_ip6(v6.get("ip", ""), "Adresse IPv6"))
+            ip = ipaddress.IPv6Address(_check_ip6(v6.get("ip", ""), _("Adresse IPv6")))
             if ip.is_link_local or ip.is_multicast or ip.is_unspecified or ip.is_loopback:
-                errors.append(f"{ip} ne peut pas être utilisée comme adresse statique")
+                errors.append(_("{0} ne peut pas être utilisée comme adresse statique", ip))
         except ValueError as e:
             errors.append(str(e))
         p = str(v6.get("prefix") or "").strip().lstrip("/")
         if not (p.isdigit() and 1 <= int(p) <= 128):
-            errors.append("Préfixe IPv6 invalide (1 à 128, généralement 64)")
+            errors.append(_("Préfixe IPv6 invalide (1 à 128, généralement 64)"))
         if (v6.get("gateway") or "").strip():
             try:
-                _check_ip6(v6["gateway"], "Passerelle IPv6")
+                _check_ip6(v6["gateway"], _("Passerelle IPv6"))
             except ValueError as e:
                 errors.append(str(e))
-    for k, lbl in (("dns1", "DNS IPv6 primaire"), ("dns2", "DNS IPv6 secondaire")):
+    for k, lbl in (("dns1", _("DNS IPv6 primaire")), ("dns2", _("DNS IPv6 secondaire"))):
         if (v6.get(k) or "").strip():
             try:
                 _check_ip6(v6[k], lbl)

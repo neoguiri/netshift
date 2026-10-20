@@ -6,6 +6,19 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-20
+
+### Added
+- **English interface** (and an i18n framework for more languages): every UI string goes through `_()` with
+  French as the source language and `netshift/locales/en.py` as the English catalog. The language is detected
+  from Windows on first start and can be switched in the sidebar (Français / English), with an automatic restart.
+- `tests/test_i18n.py`: every UI string must have a translation with identical placeholders.
+- English screenshots in `docs/screenshots/en/` (used by the English README).
+
+### Fixed
+- Coloured buttons (green, blue, red) now look neutral when disabled; previously a disabled button kept its bright
+  colour with grey text, which was hard to read and looked clickable.
+
 ## [1.4.0] - 2026-10-20
 
 ### Added
@@ -82,7 +95,8 @@ First public release.
 - Light / dark / system theme, automatic UAC elevation with read-only fallback, desktop shortcut.
 - Standalone `NetShift.exe` built by GitHub Actions for each release.
 
-[Unreleased]: https://github.com/neoguiri/netshift/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/neoguiri/netshift/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/neoguiri/netshift/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/neoguiri/netshift/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/neoguiri/netshift/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/neoguiri/netshift/compare/v1.1.0...v1.2.0

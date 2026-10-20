@@ -1,6 +1,7 @@
 """Génère les captures d'écran de la documentation avec des données fictives.
 
 Usage :  python scripts/make_screenshots.py [dossier_sortie]
+         THEME=light pour le thème clair ; NETSHIFT_LANG=en pour l'anglais (écrit dans docs/screenshots/en/).
 
 Aucune donnée réelle n'est lue : cartes, scan, ping et historique sont simulés
 (plages d'adresses de documentation RFC 5737 et réseaux privés génériques).
@@ -30,8 +31,20 @@ from netshift import netbackend as nb  # noqa: E402
 from netshift import nettools as nt  # noqa: E402
 from netshift import tools_view as tv  # noqa: E402
 from netshift import vpn  # noqa: E402
+from netshift.i18n import _, language  # noqa: E402
 
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "screenshots"
+OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "screenshots" / (
+    "" if language() == "fr" else language())
+
+# Données fictives, dans la langue des captures
+DEMO_TEXT = {
+    "fr": {"office": "Bureau — VLAN 10", "office_desc": "Poste fixe, prise murale B12", "plc": "Automate atelier",
+           "plc_desc": "Câble direct sur l'automate, pas de passerelle", "vpn1": "VPN Bureau",
+           "vpn2": "Atelier (L2TP)", "vpn3": "Client — support"},
+    "en": {"office": "Office — VLAN 10", "office_desc": "Desk, wall socket B12", "plc": "Workshop PLC",
+           "plc_desc": "Direct cable to the PLC, no gateway", "vpn1": "Office VPN", "vpn2": "Workshop (L2TP)",
+           "vpn3": "Customer — support"},
+}[language()]
 OUT.mkdir(parents=True, exist_ok=True)
 
 
@@ -112,11 +125,11 @@ DEMO_ADAPTERS += [
 ]
 
 DEMO_VPNS = [
-    vpn.Vpn("VPN Bureau", "vpn.example.com", tunnel="Ikev2", auth="Eap", split=True, remember=True,
+    vpn.Vpn(DEMO_TEXT["vpn1"], "vpn.example.com", tunnel="Ikev2", auth="Eap", split=True, remember=True,
             dns_suffix="corp.example", routes=["10.0.0.0/8", "172.16.0.0/12"], status="Connected",
             ips=["10.20.99.14/32"]),
-    vpn.Vpn("Atelier (L2TP)", "203.0.113.10", tunnel="L2tp", auth="MSChapv2", all_users=True),
-    vpn.Vpn("Client — support", "support.example.net", tunnel="Sstp", auth="MSChapv2", remember=False),
+    vpn.Vpn(DEMO_TEXT["vpn2"], "203.0.113.10", tunnel="L2tp", auth="MSChapv2", all_users=True),
+    vpn.Vpn(DEMO_TEXT["vpn3"], "support.example.net", tunnel="Sstp", auth="MSChapv2", remember=False),
 ]
 
 DEMO_HOSTS = [
@@ -217,31 +230,32 @@ def main():
     app = A.App()
     import customtkinter as ctk
     ctk.set_appearance_mode(theme)
-    app.theme_seg.set("Sombre" if theme == "dark" else "Clair")
+    app.theme_seg.set(_("Sombre") if theme == "dark" else _("Clair"))
     app.after(300, app._restyle)
     app.journal.clear()  # n'affiche aucun chemin local de la machine qui génère les captures
-    app.log(f"NetShift {A.VERSION} démarré — administrateur", "muted")
+    app.log(_("{0} {1} démarré — {2} — données : {3}", "NetShift", A.VERSION, "admin", "%APPDATA%\\NetShift"),
+            "muted")
     app.geometry("1320x840+10+10")
-    app.presets.add("Bureau — VLAN 10", {"mode": "static", "ip": "192.168.10.25", "mask": "24",
-                                         "gateway": "192.168.10.1", "dns1": "192.168.10.1", "dns2": "1.1.1.1"},
-                    "Poste fixe, prise murale B12")
-    app.presets.add("Automate atelier", {"mode": "static", "ip": "172.16.5.200", "mask": "255.255.0.0"},
-                    "Câble direct sur l'automate, pas de passerelle")
+    app.presets.add(DEMO_TEXT["office"], {"mode": "static", "ip": "192.168.10.25", "mask": "24",
+                                          "gateway": "192.168.10.1", "dns1": "192.168.10.1", "dns2": "1.1.1.1"},
+                    DEMO_TEXT["office_desc"])
+    app.presets.add(DEMO_TEXT["plc"], {"mode": "static", "ip": "172.16.5.200", "mask": "255.255.0.0"},
+                    DEMO_TEXT["plc_desc"])
     app.history.add("Ethernet", "Intel(R) Ethernet Connection I219-LM", {"mode": "dhcp", "dns_mode": "auto"},
                     {"mode": "static", "ip": "192.168.10.25", "mask": "255.255.255.0", "gateway": "192.168.10.1",
-                     "dns1": "192.168.10.1"}, "Preset « Bureau — VLAN 10 »", True)
+                     "dns1": "192.168.10.1"}, _("Preset « {0} »", DEMO_TEXT["office"]), True)
     app._presets_changed()
 
     steps = [
-        ("configuration", lambda: app.tabs.set("Configuration")),
-        ("presets", lambda: (app.tabs.set("Presets"), app._select_preset(app.presets.presets[-2]["id"]))),
-        ("scan", lambda: (app.tabs.set("Outils"), app.tools.show("Scan réseau"), app.tools._scan_start())),
-        ("ping", lambda: (app.tools.show("Ping"), app.tools._quick_ping("192.168.10.1"))),
-        ("calc", lambda: (app.tools.show("Calcul IP"), app.tools._set_entry(app.tools.calc_ip, "192.168.10.37/26"),
+        ("configuration", lambda: app.tabs.set(_("Configuration"))),
+        ("presets", lambda: (app.tabs.set(_("Presets")), app._select_preset(app.presets.presets[-2]["id"]))),
+        ("scan", lambda: (app.tabs.set(_("Outils")), app.tools.show(_("Scan réseau")), app.tools._scan_start())),
+        ("ping", lambda: (app.tools.show(_("Ping")), app.tools._quick_ping("192.168.10.1"))),
+        ("calc", lambda: (app.tools.show(_("Calcul IP")), app.tools._set_entry(app.tools.calc_ip, "192.168.10.37/26"),
                           app.tools._calc())),
-        ("capture", lambda: (app.tools.show("Capture"), inject_capture(app))),
+        ("capture", lambda: (app.tools.show(_("Capture")), inject_capture(app))),
         ("vpn", lambda: app.tabs.set("VPN")),
-        ("history", lambda: app.tabs.set("Historique & journal")),
+        ("history", lambda: app.tabs.set(_("Historique & journal"))),
     ]
 
     def run(i=0, pending=None):

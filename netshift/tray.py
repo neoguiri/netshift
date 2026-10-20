@@ -1,6 +1,7 @@
 """Icône dans la zone de notification : ouvrir NetShift, appliquer un preset en deux clics, état des cartes."""
 from __future__ import annotations
 
+from .i18n import _
 from .store import resource_dir
 
 
@@ -43,23 +44,23 @@ class Tray:
             elif adapters:
                 preset_items.append(Item(p["name"], Menu(*[Item(a.name, apply(p["id"], a.guid)) for a in adapters])))
         if not preset_items:
-            preset_items = [Item("Aucun preset", None, enabled=False)]
+            preset_items = [Item(_("Aucun preset"), None, enabled=False)]
 
         card_items = []
         for a in adapters:
             ip = a.primary_ip
-            state = (f"{ip.ip}/{ip.prefix}" if ip and a.up else "désactivée" if a.disabled else "déconnectée")
+            state = (f"{ip.ip}/{ip.prefix}" if ip and a.up else _("désactivée") if a.disabled else _("déconnectée"))
             card_items.append(Item(f"{'●' if a.up else '○'}  {a.name} — {state}", None, enabled=False))
         if not card_items:
-            card_items = [Item("Lecture en cours…", None, enabled=False)]
+            card_items = [Item(_("Lecture en cours…"), None, enabled=False)]
 
         return (
-            Item("Ouvrir NetShift", lambda icon, item: app.ui(app.show_window), default=True),
+            Item(_("Ouvrir NetShift"), lambda icon, item: app.ui(app.show_window), default=True),
             Menu.SEPARATOR,
-            Item("Appliquer un preset", Menu(*preset_items)),
-            Item("Cartes réseau", Menu(*card_items)),
+            Item(_("Appliquer un preset"), Menu(*preset_items)),
+            Item(_("Cartes réseau"), Menu(*card_items)),
             Menu.SEPARATOR,
-            Item("Quitter", lambda icon, item: app.ui(app.quit_app)),
+            Item(_("Quitter"), lambda icon, item: app.ui(app.quit_app)),
         )
 
     # -------------------------------------------------------------- actions

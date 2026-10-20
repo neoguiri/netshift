@@ -6,6 +6,7 @@ import tkinter as tk
 import customtkinter as ctk
 
 from . import vpn
+from .i18n import _
 from .ui import (
     ACCENT,
     ACCENT_SOFT,
@@ -65,15 +66,15 @@ class VpnView(ctk.CTkFrame):
         left.grid_rowconfigure(1, weight=1)
         top = ctk.CTkFrame(left, fg_color="transparent")
         top.grid(row=0, column=0, sticky="ew", padx=16, pady=(16, 6))
-        label(top, "Connexions VPN", Fonts.h2).pack(side="left")
-        button(top, "+ Nouvelle", self.new_vpn, kind="primary", width=0, height=30).pack(side="right")
+        label(top, _("Connexions VPN"), Fonts.h2).pack(side="left")
+        button(top, _("+ Nouvelle"), self.new_vpn, kind="primary", width=0, height=30).pack(side="right")
         button(top, "⟳", self.refresh, kind="ghost", width=30, height=30,
                font=ctk.CTkFont("Segoe UI", 15)).pack(side="right", padx=(0, 4))
         self.list_frame = ctk.CTkScrollableFrame(left, fg_color="transparent")
         self.list_frame.grid(row=1, column=0, sticky="nsew", padx=(8, 4))
         self.list_frame.grid_columnconfigure(0, weight=1)
-        label(left, "Les clients tiers (WireGuard, OpenVPN, AnyConnect…) apparaissent\n"
-                    "dans la liste des cartes avec le type « VPN ».", Fonts.small, MUTED,
+        label(left, _("Les clients tiers (WireGuard, OpenVPN, AnyConnect…) apparaissent\n"
+                    "dans la liste des cartes avec le type « VPN »."), Fonts.small, MUTED,
               justify="left").grid(row=2, column=0, sticky="w", padx=16, pady=(6, 12))
 
     def _render_list(self):
@@ -81,7 +82,7 @@ class VpnView(ctk.CTkFrame):
             w.destroy()
         self._cards = {}
         if not self.vpns:
-            label(self.list_frame, "Aucune connexion VPN Windows.\nCrée-en une avec « + Nouvelle ».",
+            label(self.list_frame, _("Aucune connexion VPN Windows.\nCrée-en une avec « + Nouvelle »."),
                   Fonts.small, MUTED, justify="center").grid(row=0, column=0, pady=24)
             return
         for i, v in enumerate(self.vpns):
@@ -97,11 +98,11 @@ class VpnView(ctk.CTkFrame):
             badge = ctk.CTkLabel(c, text=f" {_label_of(vpn.TUNNEL_TYPES, v.tunnel)} ", height=16, corner_radius=4,
                                  font=ctk.CTkFont("Segoe UI", 9, "bold"), fg_color=GREY_SOFT, text_color=MUTED)
             badge.grid(row=0, column=2, padx=(4, 10), pady=(7, 0), sticky="e")
-            sub = v.server + ("  · connecté " + ", ".join(v.ips) if v.connected and v.ips else
-                              "  · connecté" if v.connected else "")
+            sub = v.server + (_("  · connecté ") + ", ".join(v.ips) if v.connected and v.ips else
+                              _("  · connecté") if v.connected else "")
             s = label(c, sub, Fonts.mono_small, GREEN if v.connected else MUTED, anchor="w", height=16)
             s.grid(row=1, column=1, columnspan=2, sticky="ew", padx=(0, 10))
-            scope = label(c, "Tous les utilisateurs" if v.all_users else "Utilisateur courant", Fonts.small, MUTED,
+            scope = label(c, _("Tous les utilisateurs") if v.all_users else _("Utilisateur courant"), Fonts.small, MUTED,
                           anchor="w", height=15)
             scope.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(0, 7), padx=(0, 10))
             for w in (c, dot, n, badge, s, scope):
@@ -125,13 +126,13 @@ class VpnView(ctk.CTkFrame):
 
         bar = ctk.CTkFrame(right, fg_color="transparent")
         bar.grid(row=1, column=0, sticky="ew", padx=18, pady=(4, 6))
-        self.connect_btn = button(bar, "Connecter", self.connect_saved, kind="success", width=110)
+        self.connect_btn = button(bar, _("Connecter"), self.connect_saved, kind="success", width=110)
         self.connect_btn.pack(side="left")
-        self.connect_creds_btn = button(bar, "Avec identifiants…", self.connect_with_creds, width=0)
+        self.connect_creds_btn = button(bar, _("Avec identifiants…"), self.connect_with_creds, width=0)
         self.connect_creds_btn.pack(side="left", padx=(6, 0))
-        self.connect_win_btn = button(bar, "Fenêtre Windows", self.connect_windows, kind="ghost", width=0)
+        self.connect_win_btn = button(bar, _("Fenêtre Windows"), self.connect_windows, kind="ghost", width=0)
         self.connect_win_btn.pack(side="left", padx=(6, 0))
-        self.disconnect_btn = button(bar, "Déconnecter", self.disconnect, kind="danger", width=110)
+        self.disconnect_btn = button(bar, _("Déconnecter"), self.disconnect, kind="danger", width=110)
         self.disconnect_btn.pack(side="right")
 
         form = ctk.CTkScrollableFrame(right, fg_color="transparent")
@@ -146,41 +147,41 @@ class VpnView(ctk.CTkFrame):
         def place(w, row, col, span=1):
             w.grid(row=row, column=col, columnspan=span, sticky="ew", padx=(8, 6) if col == 0 else (6, 8))
 
-        field(0, 0, "Nom de la connexion")
-        field(0, 1, "Serveur (nom ou adresse IP)")
-        self.f_name = entry(form, "ex. VPN Bureau", width=0)
+        field(0, 0, _("Nom de la connexion"))
+        field(0, 1, _("Serveur (nom ou adresse IP)"))
+        self.f_name = entry(form, _("ex. VPN Bureau"), width=0)
         place(self.f_name, 1, 0)
-        self.f_server = entry(form, "ex. vpn.example.com", width=0)
+        self.f_server = entry(form, _("ex. vpn.example.com"), width=0)
         place(self.f_server, 1, 1)
-        field(2, 0, "Type de tunnel")
-        field(2, 1, "Authentification")
+        field(2, 0, _("Type de tunnel"))
+        field(2, 1, _("Authentification"))
         self.f_tunnel = option_menu(form, list(vpn.TUNNEL_TYPES.values()), lambda v: self._changed(), width=0)
         place(self.f_tunnel, 3, 0)
         self.f_auth = option_menu(form, list(vpn.AUTH_METHODS.values()), lambda v: self._changed(), width=0)
         place(self.f_auth, 3, 1)
-        field(4, 0, "Chiffrement")
-        field(4, 1, "Clé pré-partagée (L2TP/IPsec)")
+        field(4, 0, _("Chiffrement"))
+        field(4, 1, _("Clé pré-partagée (L2TP/IPsec)"))
         self.f_enc = option_menu(form, list(vpn.ENCRYPTION.values()), lambda v: self._changed(), width=0)
         place(self.f_enc, 5, 0)
-        self.f_psk = entry(form, "laisser vide pour ne pas la changer", width=0, show="•")
+        self.f_psk = entry(form, _("laisser vide pour ne pas la changer"), width=0, show="•")
         place(self.f_psk, 5, 1)
-        field(6, 0, "Suffixe DNS (optionnel)")
-        self.f_dns = entry(form, "ex. corp.example", width=0)
+        field(6, 0, _("Suffixe DNS (optionnel)"))
+        self.f_dns = entry(form, _("ex. corp.example"), width=0)
         place(self.f_dns, 7, 0)
 
         sw = ctk.CTkFrame(form, fg_color="transparent")
         sw.grid(row=8, column=0, columnspan=2, sticky="ew", padx=8, pady=(14, 4))
-        self.f_split = ctk.CTkSwitch(sw, text="Split tunneling (seules les routes ci-dessous passent par le VPN)",
+        self.f_split = ctk.CTkSwitch(sw, text=_("Split tunneling (seules les routes ci-dessous passent par le VPN)"),
                                      font=Fonts.small, text_color=TEXT, progress_color=ACCENT, command=self._changed)
         self.f_split.pack(anchor="w", pady=2)
-        self.f_remember = ctk.CTkSwitch(sw, text="Mémoriser les identifiants (Windows)", font=Fonts.small,
+        self.f_remember = ctk.CTkSwitch(sw, text=_("Mémoriser les identifiants (Windows)"), font=Fonts.small,
                                         text_color=TEXT, progress_color=ACCENT, command=self._changed)
         self.f_remember.pack(anchor="w", pady=2)
-        self.f_all = ctk.CTkSwitch(sw, text="Pour tous les utilisateurs du poste (choisi à la création)",
+        self.f_all = ctk.CTkSwitch(sw, text=_("Pour tous les utilisateurs du poste (choisi à la création)"),
                                    font=Fonts.small, text_color=TEXT, progress_color=ACCENT, command=self._changed)
         self.f_all.pack(anchor="w", pady=2)
 
-        label(form, "Routes du split tunneling (une par ligne, ex. 10.0.0.0/8)", Fonts.small, MUTED,
+        label(form, _("Routes du split tunneling (une par ligne, ex. 10.0.0.0/8)"), Fonts.small, MUTED,
               anchor="w").grid(row=9, column=0, columnspan=2, sticky="w", padx=8, pady=(10, 2))
         self.f_routes = ctk.CTkTextbox(form, height=74, font=Fonts.mono, fg_color=SURFACE2, border_color=BORDER,
                                        border_width=1, corner_radius=8, text_color=TEXT)
@@ -195,11 +196,11 @@ class VpnView(ctk.CTkFrame):
 
         actions = ctk.CTkFrame(right, fg_color="transparent")
         actions.grid(row=4, column=0, sticky="ew", padx=18, pady=(6, 16))
-        self.save_btn = button(actions, "Créer la connexion", self.save, kind="primary", width=180, height=36)
+        self.save_btn = button(actions, _("Créer la connexion"), self.save, kind="primary", width=180, height=36)
         self.save_btn.pack(side="left")
-        self.dup_btn = button(actions, "Dupliquer", self.duplicate, width=0, height=36)
+        self.dup_btn = button(actions, _("Dupliquer"), self.duplicate, width=0, height=36)
         self.dup_btn.pack(side="left", padx=(8, 0))
-        self.del_btn = button(actions, "Supprimer", self.delete, kind="danger", width=0, height=36)
+        self.del_btn = button(actions, _("Supprimer"), self.delete, kind="danger", width=0, height=36)
         self.del_btn.pack(side="right")
 
     # ------------------------------------------------------------- données
@@ -220,8 +221,8 @@ class VpnView(ctk.CTkFrame):
             elif self.selected is None:
                 self.new_vpn()
 
-        self.app.bg(vpn.list_vpns, done, busy=None if quiet else "Lecture des connexions VPN…",
-                    error=lambda e: self.app.toast(f"Lecture des VPN impossible : {e}", "err"))
+        self.app.bg(vpn.list_vpns, done, busy=None if quiet else _("Lecture des connexions VPN…"),
+                    error=lambda e: self.app.toast(_("Lecture des VPN impossible : {0}", e), "err"))
 
     def _auto_refresh(self):
         if self.winfo_ismapped() and self.app.auto_refresh.get() and not self._busy:
@@ -264,8 +265,8 @@ class VpnView(ctk.CTkFrame):
         self.f_routes.delete("1.0", "end")
         self.f_routes.insert("1.0", "\n".join(d["routes"]))
         editing = v is not None
-        self.title.configure(text=v.name if v else "Nouvelle connexion VPN")
-        self.save_btn.configure(text="Enregistrer" if editing else "Créer la connexion")
+        self.title.configure(text=v.name if v else _("Nouvelle connexion VPN"))
+        self.save_btn.configure(text=_("Enregistrer") if editing else _("Créer la connexion"))
         self.dup_btn.configure(state="normal" if editing else "disabled")
         self.del_btn.configure(state="normal" if editing and self.app.admin else "disabled")
         self._update_status()
@@ -302,7 +303,7 @@ class VpnView(ctk.CTkFrame):
         elif warns:
             self.feedback.configure(text="⚠  " + "\n⚠  ".join(warns), text_color=ORANGE)
         elif cfg["name"] and cfg["server"]:
-            self.feedback.configure(text="✓  Configuration valide", text_color=GREEN)
+            self.feedback.configure(text=_("✓  Configuration valide"), text_color=GREEN)
         else:
             self.feedback.configure(text="")
         self.save_btn.configure(state="normal" if self.app.admin and not errors else "disabled")
@@ -316,10 +317,10 @@ class VpnView(ctk.CTkFrame):
             return
         self.status_pill.pack(side="left", padx=(10, 0))
         if v.connected:
-            txt = "  Connecté" + (f" · {', '.join(v.ips)}" if v.ips else "") + "  "
+            txt = _("  Connecté") + (f" · {', '.join(v.ips)}" if v.ips else "") + "  "
             self.status_pill.configure(text=txt, fg_color=GREEN_SOFT, text_color=GREEN)
         else:
-            self.status_pill.configure(text="  Déconnecté  ", fg_color=GREY_SOFT, text_color=MUTED)
+            self.status_pill.configure(text=_("  Déconnecté  "), fg_color=GREY_SOFT, text_color=MUTED)
         st_on, st_off = ("disabled", "normal") if v.connected else ("normal", "disabled")
         for b in (self.connect_btn, self.connect_creds_btn, self.connect_win_btn):
             b.configure(state=st_on)
@@ -341,11 +342,11 @@ class VpnView(ctk.CTkFrame):
             for line in logs:
                 self.app.log("   " + line.replace("\n", "\n   "), "muted" if ok else "err")
             if ok:
-                self.app.toast(what + " : terminé", "ok")
+                self.app.toast(what + _(" : terminé"), "ok")
                 if on_ok:
                     on_ok()
             else:
-                self.app.toast(what + " : échec — voir le journal", "err")
+                self.app.toast(what + _(" : échec — voir le journal"), "err")
             self.refresh(quiet=True)
 
         def error(e):
@@ -359,29 +360,28 @@ class VpnView(ctk.CTkFrame):
         old = self.current()
         errors, warns = vpn.validate(cfg, self._existing_names(old))
         if errors:
-            info(self, "Connexion invalide", "Corrige ces points :", "\n".join(errors))
+            info(self, _("Connexion invalide"), _("Corrige ces points :"), "\n".join(errors))
             return
-        if warns and not confirm(self, "Enregistrer malgré les avertissements ?", "", "Enregistrer",
+        if warns and not confirm(self, _("Enregistrer malgré les avertissements ?"), "", _("Enregistrer"),
                                  detail="\n".join(warns)):
             return
         if old is not None and old.connected:
-            if not confirm(self, "Déconnecter d'abord ?", f"« {old.name} » est connecté : Windows ne permet pas "
-                           "de le modifier pendant la connexion. Le déconnecter puis enregistrer ?", "Déconnecter"):
+            if not confirm(self, _("Déconnecter d'abord ?"), _("« {0} » est connecté : Windows ne permet pas de le modifier pendant la connexion. Le déconnecter puis enregistrer ?", old.name), _("Déconnecter")):
                 return
             vpn.disconnect(old)
         if old is None:
             cmds = vpn.build_create(cfg)
-            what = f"Création du VPN « {cfg['name']} »"
+            what = _("Création du VPN « {0} »", cfg['name'])
         elif cfg["name"] != old.name:
-            if not confirm(self, "Renommer la connexion ?",
-                           "Windows ne permet pas de renommer un VPN : la connexion sera supprimée puis recréée. "
-                           "Les identifiants mémorisés devront être ressaisis.", "Renommer"):
+            if not confirm(self, _("Renommer la connexion ?"),
+                           _("Windows ne permet pas de renommer un VPN : la connexion sera supprimée puis recréée. "
+                           "Les identifiants mémorisés devront être ressaisis."), _("Renommer")):
                 return
             cmds = vpn.build_recreate(old, cfg)
-            what = f"Renommage du VPN « {old.name} » en « {cfg['name']} »"
+            what = _("Renommage du VPN « {0} » en « {1} »", old.name, cfg['name'])
         else:
             cmds = vpn.build_update(old, cfg)
-            what = f"Modification du VPN « {old.name} »"
+            what = _("Modification du VPN « {0} »", old.name)
         scope = cfg["all_users"] if old is None else old.all_users
         new_key = f"{'all' if scope else 'me'}:{cfg['name']}"
         self._run(cmds, what, on_ok=lambda: setattr(self, "selected", new_key))
@@ -390,18 +390,18 @@ class VpnView(ctk.CTkFrame):
         v = self.current()
         if v:
             d = v.to_dict()
-            d["name"] = f"{v.name} (copie)"
+            d["name"] = _("{0} (copie)", v.name)
             self.new_vpn(d)
 
     def delete(self):
         v = self.current()
-        if not v or not confirm(self, "Supprimer la connexion VPN ?", f"« {v.name} » sera supprimée de Windows.",
-                                "Supprimer", kind="danger"):
+        if not v or not confirm(self, _("Supprimer la connexion VPN ?"), _("« {0} » sera supprimée de Windows.", v.name),
+                                _("Supprimer"), kind="danger"):
             return
         if v.connected:
             vpn.disconnect(v)
         self.selected = None
-        self._run([vpn.build_remove(v)], f"Suppression du VPN « {v.name} »")
+        self._run([vpn.build_remove(v)], _("Suppression du VPN « {0} »", v.name))
 
     def _toggle_connection(self, key: str):
         self.select(key)
@@ -413,20 +413,20 @@ class VpnView(ctk.CTkFrame):
         v = self.current()
         if not v:
             return
-        self.app.log(f"Connexion au VPN « {v.name} »" + (f" (utilisateur {user})" if user else ""), "accent")
+        self.app.log(_("Connexion au VPN « {0} »", v.name) + (_(" (utilisateur {0})", user) if user else ""), "accent")
 
         def done(res):
             ok, out = res
-            self.app.log(out or "(pas de sortie)", "muted" if ok else "err")
+            self.app.log(out or _("(pas de sortie)"), "muted" if ok else "err")
             if ok:
-                self.app.toast(f"Connecté à « {v.name} »", "ok")
+                self.app.toast(_("Connecté à « {0} »", v.name), "ok")
             else:
-                first = (out or "Échec").splitlines()[0]
-                self.app.toast(f"Connexion impossible : {first}", "err")
+                first = (out or _("Échec")).splitlines()[0]
+                self.app.toast(_("Connexion impossible : {0}", first), "err")
             self.refresh(quiet=True)
             self.app.refresh_adapters(quiet=True)
 
-        self.app.bg(lambda: vpn.connect(v, user, password), done, busy=f"Connexion à « {v.name} »…")
+        self.app.bg(lambda: vpn.connect(v, user, password), done, busy=_("Connexion à « {0} »…", v.name))
 
     def connect_with_creds(self):
         v = self.current()
@@ -440,7 +440,7 @@ class VpnView(ctk.CTkFrame):
         v = self.current()
         if v:
             vpn.connect_dialog(v)
-            self.app.log(f"Fenêtre de connexion Windows ouverte pour « {v.name} »")
+            self.app.log(_("Fenêtre de connexion Windows ouverte pour « {0} »", v.name))
             self.after(4000, lambda: self.refresh(quiet=True))
 
     def disconnect(self):
@@ -450,12 +450,12 @@ class VpnView(ctk.CTkFrame):
 
         def done(res):
             ok, out = res
-            self.app.log(f"Déconnexion de « {v.name} » : {out or 'OK'}", None if ok else "err")
-            self.app.toast(f"« {v.name} » déconnecté" if ok else "Déconnexion impossible", "ok" if ok else "err")
+            self.app.log(_("Déconnexion de « {0} » : {1}", v.name, out or 'OK'), None if ok else "err")
+            self.app.toast(_("« {0} » déconnecté", v.name) if ok else _("Déconnexion impossible"), "ok" if ok else "err")
             self.refresh(quiet=True)
             self.app.refresh_adapters(quiet=True)
 
-        self.app.bg(lambda: vpn.disconnect(v), done, busy=f"Déconnexion de « {v.name} »…")
+        self.app.bg(lambda: vpn.disconnect(v), done, busy=_("Déconnexion de « {0} »…", v.name))
 
 
 class _CredentialsDialog(ctk.CTkToplevel):
@@ -464,25 +464,25 @@ class _CredentialsDialog(ctk.CTkToplevel):
     def __init__(self, master, name: str):
         super().__init__(master)
         self.result = None
-        self.title("Identifiants VPN")
+        self.title(_("Identifiants VPN"))
         self.configure(fg_color=SURFACE)
         self.resizable(False, False)
         self.transient(master.winfo_toplevel())
         body = ctk.CTkFrame(self, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=24, pady=(20, 16))
-        label(body, f"Connexion à « {name} »", Fonts.h2).pack(anchor="w")
-        label(body, "Utilisés pour cette connexion uniquement ; NetShift ne les enregistre pas.", Fonts.small,
+        label(body, _("Connexion à « {0} »", name), Fonts.h2).pack(anchor="w")
+        label(body, _("Utilisés pour cette connexion uniquement ; NetShift ne les enregistre pas."), Fonts.small,
               MUTED).pack(anchor="w", pady=(4, 10))
-        label(body, "Utilisateur", Fonts.small, MUTED).pack(anchor="w")
-        self.user = entry(body, "DOMAINE\\utilisateur ou utilisateur@domaine", width=380)
+        label(body, _("Utilisateur"), Fonts.small, MUTED).pack(anchor="w")
+        self.user = entry(body, _("DOMAINE\\utilisateur ou utilisateur@domaine"), width=380)
         self.user.pack(fill="x", pady=(2, 8))
-        label(body, "Mot de passe", Fonts.small, MUTED).pack(anchor="w")
+        label(body, _("Mot de passe"), Fonts.small, MUTED).pack(anchor="w")
         self.pwd = entry(body, "", width=380, show="•")
         self.pwd.pack(fill="x", pady=(2, 0))
         row = ctk.CTkFrame(body, fg_color="transparent")
         row.pack(fill="x", pady=(18, 0))
-        button(row, "Connecter", self._ok, kind="success", width=110).pack(side="right")
-        button(row, "Annuler", self.destroy, kind="ghost", width=90).pack(side="right", padx=(0, 8))
+        button(row, _("Connecter"), self._ok, kind="success", width=110).pack(side="right")
+        button(row, _("Annuler"), self.destroy, kind="ghost", width=90).pack(side="right", padx=(0, 8))
         for w in (self.user, self.pwd):
             w.bind("<Return>", lambda e: self._ok())
         self.bind("<Escape>", lambda e: self.destroy())

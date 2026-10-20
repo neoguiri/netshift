@@ -19,7 +19,7 @@ with presets, undo, and the network tools you reach for every day.**
 [FAQ](#faq) ·
 [Version française](README.fr.md)
 
-<img src="docs/screenshots/configuration-dark.png" alt="NetShift main window" width="900">
+<img src="docs/screenshots/en/configuration-dark.png" alt="NetShift main window" width="900">
 
 </div>
 
@@ -30,8 +30,8 @@ a PLC, a camera in factory-default `192.168.0.x`, then back to the office DHCP �
 `ncpa.cpl` → *Properties* → *IPv4* → *Properties* dance. NetShift replaces it with a single window:
 pick a card, pick a preset, apply. Every change is recorded so you can roll back instantly.
 
-> **Note** — the user interface is currently in **French**. Translating it is the top item on the
-> [roadmap](#roadmap); contributions are welcome.
+> The interface is available in **English** and **French** (detected from Windows, switchable in the sidebar).
+> Other languages are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translations).
 
 ## Features
 
@@ -93,9 +93,9 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 
 | Presets | Network scan |
 |---|---|
-| ![Presets](docs/screenshots/presets-dark.png) | ![Network scan](docs/screenshots/scan-dark.png) |
+| ![Presets](docs/screenshots/en/presets-dark.png) | ![Network scan](docs/screenshots/en/scan-dark.png) |
 | **Packet capture** | **VPN** |
-| ![Packet capture](docs/screenshots/capture-dark.png) | ![VPN](docs/screenshots/vpn-dark.png) |
+| ![Packet capture](docs/screenshots/en/capture-dark.png) | ![VPN](docs/screenshots/en/vpn-dark.png) |
 
 Light and dark themes (or follow Windows). More in [`docs/screenshots`](docs/screenshots).
 
@@ -133,7 +133,7 @@ pip install -r requirements.txt
 pythonw NetShift.pyw
 ```
 
-Use the *Créer un raccourci sur le bureau* button in the sidebar to add a desktop shortcut.
+Use the *Create a desktop shortcut* button in the sidebar to add a desktop shortcut.
 
 ### Build the executable yourself
 
@@ -148,12 +148,13 @@ Produces `dist\NetShift.exe` with PyInstaller, and `dist\NetShift-Setup-<version
 
 | Action | How |
 |---|---|
-| Apply a configuration | Select an adapter → edit *Nouvelle configuration* → **Appliquer** (or `Ctrl+Enter`) |
-| Start from current settings | *Copier dans l'éditeur →* |
-| Save as preset | *Enregistrer comme preset* (from the editor or the current config) |
-| Apply a preset | *Presets* tab → choose target adapter → **Appliquer**, or double-click the preset |
-| Roll back | **Annuler le dernier changement** in the header, or *Historique & journal* |
+| Apply a configuration | Select an adapter → edit *New configuration* → **Apply** (or `Ctrl+Enter`) |
+| Start from current settings | *Copy to editor →* |
+| Save as preset | *Save as preset* (from the editor or the current configuration) |
+| Apply a preset | *Presets* tab → choose the adapter → **Apply**, double-click the preset, or the tray menu |
+| Roll back | **Undo last change** in the header, or *History & log* |
 | Refresh adapters | `F5` or ⟳ |
+| Change language | *Français / English* at the bottom of the sidebar (applied after a restart) |
 
 Without administrator rights the app opens in **read-only mode**: everything is visible, the tools work,
 and a banner offers to relaunch elevated.
@@ -184,7 +185,7 @@ portable version and source checkouts (falling back to `%APPDATA%\NetShift` if t
 |---|---|
 | `presets.json` | Your presets (portable — share it or use Import/Export) |
 | `history.json` | Last 50 applied changes with their previous state |
-| `settings.json` | Theme, window size, options |
+| `settings.json` | Theme, language, window size, options |
 
 ## FAQ
 
@@ -208,7 +209,8 @@ Yes — any adapter listed by `Get-NetAdapter` (Ethernet, Wi-Fi, USB, virtual).
 - [x] Windows installer (1.1)
 - [x] **VPN management** (1.2): list, create, edit, delete, connect / disconnect Windows VPN connections
 - [x] Show / hide adapters by type (1.2)
-- [ ] English interface / i18n
+- [x] English interface / i18n (1.5)
+- [ ] More languages (contributions welcome)
 - [x] IPv6 configuration (1.4)
 - [x] Per-preset default adapter and quick-switch from the system tray (1.3)
 - [x] Interface metric and connection DNS suffix (1.3)

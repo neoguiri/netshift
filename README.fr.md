@@ -80,6 +80,8 @@ en arrière immédiatement.
 - **Test de ports TCP**, **DNS** / nslookup / vider le cache, **calculatrice de sous-réseau**, IP publique
 - **Commandes système** : `ipconfig /all`, table ARP, routes, connexions, profils Wi-Fi…
 
+L'interface existe en **français** et en **anglais** (détectée d'après Windows, modifiable en bas de la barre latérale).
+
 ## Installation
 
 ### Installeur (recommandé)
@@ -147,7 +149,7 @@ laissent l'IPv6 inchangé.
 
 ## Prochainement
 
-- Interface en anglais (1.5)
+- Autres langues (contributions bienvenues, voir [CONTRIBUTING.md](CONTRIBUTING.md#translations))
 
 ## Contribuer
 

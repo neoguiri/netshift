@@ -10,7 +10,7 @@ import pytest
 
 Image = pytest.importorskip("PIL.Image")
 
-SHOTS = sorted((Path(__file__).resolve().parent.parent / "docs" / "screenshots").glob("*.png"))
+SHOTS = sorted((Path(__file__).resolve().parent.parent / "docs" / "screenshots").rglob("*.png"))
 # (barre latérale, fond) — doivent correspondre à SIDEBAR et BG dans netshift/ui.py
 THEMES = {"dark": ((0x12, 0x16, 0x1D), (0x0E, 0x11, 0x16)), "light": ((0xE8, 0xEB, 0xF1), (0xF3, 0xF5, 0xF9))}
 
