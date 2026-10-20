@@ -119,3 +119,11 @@ Parallels…). Hidden types are stored in `settings.json` (`hidden_kinds`).
 the current adapters and presets; every click is marshalled to the Tk thread with `App.ui()`. Applying a preset
 from the tray goes through the normal `App.apply()` path (validation, confirmation if enabled, history, log).
 If pystray or Pillow is missing the app runs without the icon.
+
+## IPv6
+
+The adapter snapshot also reads `Get-NetIPInterface/Get-NetIPAddress/Get-NetRoute -AddressFamily IPv6`, the IPv6 DNS
+servers and the `ms_tcpip6` binding. A configuration's `v6` block has a `mode`: `unchanged` (no command at all),
+`auto`, `static` or `disabled`. `build_v6_commands()` removes previous manual addresses and `::/0` routes, toggles
+router discovery, sets the address/route/DNS with `netsh interface ipv6`, and enables or disables the binding
+through PowerShell. Link-local addresses are never removed.

@@ -45,6 +45,8 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 - Side-by-side *current* vs *new* configuration; click any current value to copy it
 - DHCP or static, mask as `255.255.255.0` **or** `/24`, one-click `.1` gateway, secondary IPs
 - Manual DNS even in DHCP mode, public DNS shortcuts (Cloudflare, Google, Quad9, OpenDNS)
+- **IPv6**: leave unchanged, automatic (router advertisements / DHCPv6), static (address, prefix, gateway,
+  DNS) or disabled on the adapter; current IPv6 state shown next to IPv4
 - Advanced options: interface metric (route priority) and connection-specific DNS suffix
 - Live validation: network/broadcast address, gateway outside subnet, malformed entries…
 - Confirmation dialog summarising the change, then an automatic gateway ping to verify it worked
@@ -161,7 +163,7 @@ and a banner offers to relaunch elevated.
 - **Reading** adapters uses PowerShell (`Get-NetAdapter`, `Get-NetIPAddress`, `Get-NetRoute`,
   `Get-DnsClientServerAddress`) through one persistent, hidden PowerShell process: the first read takes
   about 3 s, subsequent refreshes about 0.25 s.
-- **Applying** uses the standard `netsh interface ipv4` commands, addressed by interface index
+- **Applying** uses the standard `netsh interface ipv4` / `ipv6` commands, addressed by interface index
   (robust to localized or non-ASCII adapter names). The exact commands are shown in the log.
 - **Packet capture** uses a raw socket in promiscuous-receive mode (`SIO_RCVALL`, admin rights): no driver to
   install, IPv4 only. For a full capture (Ethernet, ARP, VLAN, Wi-Fi), the *Wireshark* button launches
@@ -195,7 +197,7 @@ The executable is built by GitHub Actions with PyInstaller and is not code-signe
 apps are sometimes flagged. You can check the build log of the release, or run from source.
 
 **Is IPv6 supported?**
-Not yet for configuration (IPv6 addresses are left untouched). See the roadmap.
+Yes (1.4): automatic, static or disabled per adapter. Presets created before 1.4 leave IPv6 unchanged.
 
 **Can I manage Wi-Fi adapters?**
 Yes — any adapter listed by `Get-NetAdapter` (Ethernet, Wi-Fi, USB, virtual).
@@ -207,7 +209,7 @@ Yes — any adapter listed by `Get-NetAdapter` (Ethernet, Wi-Fi, USB, virtual).
 - [x] **VPN management** (1.2): list, create, edit, delete, connect / disconnect Windows VPN connections
 - [x] Show / hide adapters by type (1.2)
 - [ ] English interface / i18n
-- [ ] IPv6 configuration
+- [x] IPv6 configuration (1.4)
 - [x] Per-preset default adapter and quick-switch from the system tray (1.3)
 - [x] Interface metric and connection DNS suffix (1.3)
 - [x] MAC vendor lookup in the network scan (1.3)

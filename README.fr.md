@@ -40,6 +40,8 @@ en arrière immédiatement.
 - Configuration actuelle et nouvelle côte à côte ; clic sur une valeur pour la copier
 - DHCP ou IP fixe, masque en `255.255.255.0` **ou** `/24`, passerelle `.1` en un clic, IP secondaires
 - DNS manuels même en DHCP, DNS publics en un clic (Cloudflare, Google, Quad9, OpenDNS)
+- **IPv6** : inchangé, automatique (annonces du routeur / DHCPv6), statique (adresse, préfixe, passerelle, DNS)
+  ou désactivé sur la carte ; l'état IPv6 actuel est affiché à côté de l'IPv4
 - Options avancées : métrique d'interface (priorité des routes) et suffixe DNS de la connexion
 - Validation en direct (adresse réseau/broadcast, passerelle hors sous-réseau, saisie invalide…)
 - Résumé avant application, puis ping automatique de la passerelle pour vérifier
@@ -140,11 +142,12 @@ privilégiée sous Windows. La consultation et les outils fonctionnent sans.
 **SmartScreen ou l'antivirus signale l'exe.** L'exécutable est construit par GitHub Actions avec
 PyInstaller et n'est pas signé ; ces exe sont parfois signalés à tort. Tu peux lancer depuis les sources.
 
-**IPv6 ?** Pas encore pour la configuration (les adresses IPv6 ne sont pas modifiées).
+**IPv6 ?** Oui depuis la 1.4 : automatique, statique ou désactivé par carte. Les presets créés avant la 1.4
+laissent l'IPv6 inchangé.
 
 ## Prochainement
 
-- Interface en anglais, configuration IPv6
+- Interface en anglais (1.5)
 
 ## Contribuer
 

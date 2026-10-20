@@ -84,6 +84,16 @@ def describe(cfg: dict) -> str:
     else:
         dns = ", ".join(d for d in (cfg["dns1"], cfg["dns2"]) if d) or "aucun"
         lines.append(f"DNS        : {dns}")
+    v6 = cfg["v6"]
+    if v6["mode"] == "auto":
+        lines.append("IPv6       : automatique" + (f" · DNS {v6['dns1']}" if v6["dns1"] else ""))
+    elif v6["mode"] == "static":
+        lines.append(f"IPv6       : {v6['ip']}/{v6['prefix']}" + (f" via {v6['gateway']}" if v6["gateway"] else ""))
+        dns6 = ", ".join(d for d in (v6["dns1"], v6["dns2"]) if d)
+        if dns6:
+            lines.append(f"DNS IPv6   : {dns6}")
+    elif v6["mode"] == "disabled":
+        lines.append("IPv6       : désactivé sur la carte")
     if cfg.get("adv"):
         lines.append(f"Métrique   : {cfg.get('metric') or 'auto'}")
         lines.append(f"Suffixe DNS: {cfg.get('dns_suffix') or 'aucun'}")
@@ -650,6 +660,15 @@ class App(ctk.CTk):
                 rows.append((f"DNS ({dns_src})" if i == 0 else "", d, TEXT))
         else:
             rows.append(("DNS", "aucun", MUTED))
+        v6_label = {"auto": "automatique", "static": "statique", "disabled": "désactivé"}[a.ipv6_mode]
+        rows.append(("IPv6", v6_label, MUTED if a.ipv6_mode == "disabled" else ACCENT))
+        shown6 = a.global_ips6 or a.ips6[:1]   # le lien local seulement s'il n'y a rien d'autre
+        for i, ip6 in enumerate(shown6[:3]):
+            rows.append(("" if i else "Adresse IPv6", f"{ip6.ip}/{ip6.prefix}", TEXT))
+        if a.gateways6:
+            rows.append(("Passerelle v6", a.gateways6[0], TEXT))
+        if a.dns6:
+            rows.append(("DNS IPv6", ", ".join(a.dns6[:2]), TEXT))
         metric = "auto" if a.auto_metric else str(a.metric or "—")
         if a.auto_metric and a.metric:
             metric += f" ({a.metric})"

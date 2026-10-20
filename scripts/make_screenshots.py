@@ -99,6 +99,11 @@ DEMO_ADAPTERS = [
 DEMO_ADAPTERS[1].kind = "wifi"
 for _a, _m in zip(DEMO_ADAPTERS, (25, 35, 25, 25)):
     _a.metric = _m
+DEMO_ADAPTERS[0].ips6 = [nb.IPAddr("2001:db8:10:0:3e52:82ff:fe1a:2b3c", 64, "RouterAdvertisement"),
+                         nb.IPAddr("fe80::3e52:82ff:fe1a:2b3c", 64, "WellKnown")]
+DEMO_ADAPTERS[0].gateways6 = ["fe80::1"]
+DEMO_ADAPTERS[1].ips6 = [nb.IPAddr("fe80::a46b:b6ff:fe11:2233", 64, "WellKnown")]
+DEMO_ADAPTERS[3].ipv6_enabled = False
 DEMO_ADAPTERS += [
     nb.Adapter("wg-bureau", "WireGuard Tunnel", "Up", "", "1 Gbps", 41, "{demo-5}", False, False, True, 1420,
                [nb.IPAddr("10.66.0.12", 32, "Manual")], [], ["10.66.0.1"], kind="vpn"),

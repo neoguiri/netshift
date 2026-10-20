@@ -52,6 +52,7 @@ EMPTY_CONFIG = {
     "mode": "static", "ip": "", "mask": "255.255.255.0", "gateway": "",
     "dns_mode": "static", "dns1": "", "dns2": "", "extra_ips": [],
     "adv": False, "metric": "auto", "dns_suffix": "",
+    "v6": {"mode": "unchanged", "ip": "", "prefix": "64", "gateway": "", "dns1": "", "dns2": ""},
 }
 
 DEFAULT_PRESETS = [
@@ -74,6 +75,7 @@ PUBLIC_DNS = {
 def normalize_config(cfg: dict) -> dict:
     out = {**EMPTY_CONFIG, **(cfg or {})}
     out["extra_ips"] = [x for x in (out.get("extra_ips") or []) if str(x).strip()]
+    out["v6"] = {**EMPTY_CONFIG["v6"], **(out.get("v6") or {})}
     return out
 
 
@@ -96,6 +98,13 @@ def summarize(cfg: dict) -> str:
         s += f" · +{len(cfg['extra_ips'])} IP"
     if cfg.get("adv") and str(cfg.get("metric", "auto")) != "auto":
         s += f" · métrique {cfg['metric']}"
+    v6 = cfg["v6"]["mode"]
+    if v6 == "static":
+        s += f" · IPv6 {cfg['v6']['ip']}/{cfg['v6']['prefix']}"
+    elif v6 == "auto":
+        s += " · IPv6 auto"
+    elif v6 == "disabled":
+        s += " · IPv6 off"
     return s
 
 

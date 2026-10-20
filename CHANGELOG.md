@@ -6,6 +6,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-20
+
+### Added
+- **IPv6 configuration** per adapter and in presets: *unchanged* (default, so older presets never touch IPv6),
+  *automatic* (router advertisements / DHCPv6), *static* (address, prefix length, gateway, DNS) or *disabled*
+  (`ms_tcpip6` binding). Previous manual addresses and default routes are cleaned up; the link-local address is
+  always kept. Applied with `netsh interface ipv6` and included in undo snapshots.
+- Current IPv6 state in the configuration panel (mode, global addresses, gateway, DNS) and in the apply summary.
+
 ## [1.3.0] - 2026-10-20
 
 ### Added
@@ -73,7 +82,8 @@ First public release.
 - Light / dark / system theme, automatic UAC elevation with read-only fallback, desktop shortcut.
 - Standalone `NetShift.exe` built by GitHub Actions for each release.
 
-[Unreleased]: https://github.com/neoguiri/netshift/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/neoguiri/netshift/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/neoguiri/netshift/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/neoguiri/netshift/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/neoguiri/netshift/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/neoguiri/netshift/compare/v1.0.0...v1.1.0

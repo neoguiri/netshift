@@ -132,3 +132,72 @@ def test_to_config_includes_advanced():
     cfg = a.to_config()
     assert cfg["adv"] and cfg["metric"] == "25" and cfg["dns_suffix"] == "lab.local"
     assert make_adapter().to_config()["metric"] == "auto"
+
+
+# ----------------------------------------------------------------------------- IPv6
+def v6(**kw):
+    base = {"mode": "static", "ip": "2001:db8:10::25", "prefix": "64", "gateway": "fe80::1",
+            "dns1": "2001:4860:4860::8888", "dns2": ""}
+    base.update(kw)
+    return base
+
+
+def test_ipv6_mode_detection():
+    a = make_adapter(ips6=[nb.IPAddr("fe80::1234", 64, "WellKnown"), nb.IPAddr("2001:db8::5", 64, "RouterAdvertisement")])
+    assert a.ipv6_mode == "auto" and [i.ip for i in a.global_ips6] == ["2001:db8::5"]
+    assert make_adapter(ips6=[nb.IPAddr("2001:db8::9", 64, "Manual")]).ipv6_mode == "static"
+    assert make_adapter(router_discovery=False).ipv6_mode == "static"
+    assert make_adapter(ipv6_enabled=False).ipv6_mode == "disabled"
+
+
+def test_validate_v6():
+    assert nb.validate_v6(v6()) == []
+    assert nb.validate_v6({"mode": "unchanged", "ip": "garbage"}) == []
+    assert any("Adresse IPv6 invalide" in e for e in nb.validate_v6(v6(ip="2001:db8::zz")))
+    assert any("ne peut pas" in e for e in nb.validate_v6(v6(ip="fe80::5")))
+    assert any("Préfixe IPv6" in e for e in nb.validate_v6(v6(prefix="129")))
+    assert any("DNS IPv6" in e for e in nb.validate_v6(v6(mode="auto", dns1="1.1.1.1")))
+    errors, _ = nb.validate_config({"mode": "dhcp", "dns_mode": "auto", "v6": v6(prefix="0")})
+    assert errors
+
+
+def test_v6_unchanged_adds_nothing():
+    base = {"mode": "dhcp", "dns_mode": "auto"}
+    assert nb.build_commands(make_adapter(), base) == nb.build_commands(make_adapter(), {**base, "v6": {"mode": "unchanged"}})
+
+
+def test_v6_static_commands_replace_previous_manual():
+    a = make_adapter(ips6=[nb.IPAddr("2001:db8::99", 64, "Manual"), nb.IPAddr("fe80::1", 64, "WellKnown")],
+                     gateways6=["fe80::fe"])
+    cmds = [" ".join(c) if isinstance(c, list) else c for c in nb.build_v6_commands(a, v6(dns2="2001:4860:4860::8844"))]
+    assert "netsh interface ipv6 delete address interface=12 address=2001:db8::99" in cmds
+    assert "netsh interface ipv6 delete route prefix=::/0 interface=12 nexthop=fe80::fe" in cmds
+    assert "netsh interface ipv6 set interface interface=12 routerdiscovery=disabled" in cmds
+    assert "netsh interface ipv6 add address interface=12 address=2001:db8:10::25/64" in cmds
+    assert "netsh interface ipv6 add route prefix=::/0 interface=12 nexthop=fe80::1" in cmds
+    assert any(c.startswith("netsh interface ipv6 set dnsservers name=12 source=static address=2001:4860:4860::8888") for c in cmds)
+    assert "netsh interface ipv6 add dnsservers name=12 address=2001:4860:4860::8844 index=2 validate=no" in cmds
+    assert not any("fe80::1 " in c and "delete address" in c for c in cmds)   # le lien local n'est jamais supprimé
+
+
+def test_v6_auto_and_disabled():
+    a = make_adapter(ips6=[nb.IPAddr("2001:db8::99", 64, "Manual")])
+    auto = [" ".join(c) if isinstance(c, list) else c for c in nb.build_v6_commands(a, {"mode": "auto"})]
+    assert "netsh interface ipv6 delete address interface=12 address=2001:db8::99" in auto
+    assert "netsh interface ipv6 set interface interface=12 routerdiscovery=enabled" in auto
+    assert auto[-1] == "netsh interface ipv6 set dnsservers name=12 source=dhcp"
+    assert nb.build_v6_commands(make_adapter(name="O'Brien"), {"mode": "disabled"}) == [
+        "Disable-NetAdapterBinding -Name 'O''Brien' -ComponentID ms_tcpip6 -Confirm:$false"]
+    assert nb.build_v6_commands(make_adapter(ipv6_enabled=False), {"mode": "disabled"}) == []
+    re_on = nb.build_v6_commands(make_adapter(ipv6_enabled=False), {"mode": "auto"})
+    assert re_on[0].startswith("Enable-NetAdapterBinding")
+
+
+def test_to_v6_config_roundtrip():
+    a = make_adapter(ips6=[nb.IPAddr("2001:db8::7", 48, "Manual")], gateways6=["fe80::1"], dns6=["2001:db8::53"],
+                     router_discovery=False)
+    cfg = a.to_v6_config()
+    assert cfg == {"mode": "static", "ip": "2001:db8::7", "prefix": "48", "gateway": "fe80::1",
+                   "dns1": "2001:db8::53", "dns2": ""}
+    assert nb.validate_v6(cfg) == []
+    assert make_adapter(ipv6_enabled=False).to_v6_config()["mode"] == "disabled"

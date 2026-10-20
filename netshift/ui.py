@@ -304,6 +304,10 @@ def ask_string(master, title, message, value="", ok_text="OK", input_label="") -
 # --------------------------------------------------------------------------- #
 #  Formulaire de configuration IP
 # --------------------------------------------------------------------------- #
+V6_LABELS = {"unchanged": "Inchangé", "auto": "Automatique", "static": "Statique", "disabled": "Désactivé"}
+_V6_KEYS = {v: k for k, v in V6_LABELS.items()}
+
+
 class ConfigForm(ctk.CTkFrame):
     def __init__(self, master, on_change=None, **kw):
         super().__init__(master, fg_color="transparent", **kw)
@@ -350,10 +354,36 @@ class ConfigForm(ctk.CTkFrame):
         self.extra.grid(row=10, column=0, columnspan=2, sticky="ew")
         self.extra.bind("<KeyRelease>", lambda e: self._changed())
 
+        # --- IPv6
+        v6_head = ctk.CTkFrame(self, fg_color="transparent")
+        v6_head.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(16, 2))
+        label(v6_head, "IPv6", Fonts.h3).pack(side="left")
+        self.v6_mode = segmented(v6_head, list(V6_LABELS.values()), command=lambda v: self._update_state(),
+                                 height=28, font=Fonts.small)
+        self.v6_mode.pack(side="left", padx=(14, 0))
+        self.v6_box = ctk.CTkFrame(self, fg_color="transparent")
+        self.v6_box.grid_columnconfigure((0, 1), weight=1, uniform="v6")
+
+        def v6field(text, row, col, placeholder):
+            label(self.v6_box, text, Fonts.small, MUTED, anchor="w").grid(
+                row=row, column=col, sticky="w", padx=(0, 6) if col == 0 else (6, 0), pady=(6, 2))
+            e = entry(self.v6_box, placeholder)
+            e.grid(row=row + 1, column=col, sticky="ew", padx=(0, 6) if col == 0 else (6, 0))
+            self._watch(e)
+            return e
+
+        self.v6_ip = v6field("Adresse IPv6", 0, 0, "ex. 2001:db8:10::25")
+        self.v6_prefix = v6field("Longueur de préfixe", 0, 1, "64")
+        self.v6_gw = v6field("Passerelle IPv6 (souvent fe80::1)", 2, 0, "optionnelle")
+        self.v6_dns1 = v6field("DNS IPv6 primaire (vide = automatiques)", 4, 0, "ex. 2606:4700:4700::1111")
+        self.v6_dns2 = v6field("DNS IPv6 secondaire", 4, 1, "optionnel")
+        self.v6_hint = label(self.v6_box, "", Fonts.small, MUTED, anchor="w", justify="left", wraplength=560)
+        self.v6_hint.grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
         self.adv = ctk.CTkSwitch(self, text="Options avancées : métrique d'interface et suffixe DNS",
                                  font=Fonts.small, text_color=MUTED, progress_color=ACCENT,
                                  command=self._update_state)
-        self.adv.grid(row=11, column=0, columnspan=2, sticky="w", pady=(12, 0))
+        self.adv.grid(row=13, column=0, columnspan=2, sticky="w", pady=(12, 0))
         self.adv_box = ctk.CTkFrame(self, fg_color="transparent")
         self.adv_box.grid_columnconfigure((0, 1), weight=1, uniform="adv")
         label(self.adv_box, "Métrique (auto ou 1–9999, plus petit = prioritaire)", Fonts.small, MUTED,
@@ -368,7 +398,7 @@ class ConfigForm(ctk.CTkFrame):
             self._watch(e)
 
         self.feedback = label(self, "", Fonts.small, MUTED, anchor="w", justify="left", wraplength=560)
-        self.feedback.grid(row=13, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        self.feedback.grid(row=15, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         self.set_config(EMPTY_CONFIG)
 
@@ -428,9 +458,22 @@ class ConfigForm(ctk.CTkFrame):
         for w in (self.dns1, self.dns2):
             w.configure(state=dns_st, text_color=TEXT if dns_st == "normal" else MUTED)
         if self.adv.get():
-            self.adv_box.grid(row=12, column=0, columnspan=2, sticky="ew")
+            self.adv_box.grid(row=14, column=0, columnspan=2, sticky="ew")
         else:
             self.adv_box.grid_remove()
+        v6 = _V6_KEYS[self.v6_mode.get()]
+        if v6 in ("auto", "static"):
+            self.v6_box.grid(row=12, column=0, columnspan=2, sticky="ew")
+            st6 = "normal" if v6 == "static" else "disabled"
+            for w in (self.v6_ip, self.v6_prefix, self.v6_gw):
+                w.configure(state=st6, text_color=TEXT if st6 == "normal" else MUTED)
+            self.v6_hint.configure(text=(
+                "Adresses obtenues automatiquement (annonces du routeur / DHCPv6). Les DNS IPv6 restent "
+                "automatiques si les champs DNS sont vides." if v6 == "auto" else
+                "La découverte de routeur est désactivée : seule l'adresse ci-dessus est utilisée "
+                "(l'adresse de lien local fe80:: est conservée)."))
+        else:
+            self.v6_box.grid_remove()
         self._changed()
 
     def set_config(self, cfg: dict):
@@ -447,6 +490,15 @@ class ConfigForm(ctk.CTkFrame):
         self.extra.insert("1.0", "\n".join(cfg["extra_ips"]))
         self.mode.set("DHCP" if cfg["mode"] == "dhcp" else "Statique")
         self.adv.select() if cfg.get("adv") else self.adv.deselect()
+        v6 = cfg["v6"]
+        self.v6_mode.set(V6_LABELS.get(v6["mode"], V6_LABELS["unchanged"]))
+        for e in (self.v6_ip, self.v6_prefix, self.v6_gw):
+            e.configure(state="normal")
+        self._set(self.v6_ip, v6["ip"])
+        self._set(self.v6_prefix, v6["prefix"] if v6["mode"] == "static" else "64")
+        self._set(self.v6_gw, v6["gateway"])
+        self._set(self.v6_dns1, v6["dns1"])
+        self._set(self.v6_dns2, v6["dns2"])
         self._set(self.metric, "" if str(cfg.get("metric", "auto")) == "auto" else str(cfg.get("metric")))
         self._set(self.dns_suffix, cfg.get("dns_suffix", ""))
         if cfg["mode"] == "dhcp" and cfg["dns_mode"] != "static":
@@ -467,9 +519,22 @@ class ConfigForm(ctk.CTkFrame):
             "dns1": self.dns1.get().strip() if dns_static else "",
             "dns2": self.dns2.get().strip() if dns_static else "",
             "extra_ips": [ln.strip() for ln in self.extra.get("1.0", "end").splitlines() if ln.strip()] if static else [],
+            "v6": self._get_v6(),
             "adv": bool(self.adv.get()),
             "metric": self.metric.get().strip() or "auto",
             "dns_suffix": self.dns_suffix.get().strip(),
+        }
+
+    def _get_v6(self) -> dict:
+        mode = _V6_KEYS[self.v6_mode.get()]
+        static = mode == "static"
+        return {
+            "mode": mode,
+            "ip": self.v6_ip.get().strip() if static else "",
+            "prefix": (self.v6_prefix.get().strip().lstrip("/") or "64") if static else "64",
+            "gateway": self.v6_gw.get().strip() if static else "",
+            "dns1": self.v6_dns1.get().strip() if mode in ("auto", "static") else "",
+            "dns2": self.v6_dns2.get().strip() if mode in ("auto", "static") else "",
         }
 
     def validate(self) -> tuple[list[str], list[str]]:

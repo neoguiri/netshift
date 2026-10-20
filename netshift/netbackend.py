@@ -184,6 +184,26 @@ class Adapter:
     metric: int | None = None
     auto_metric: bool = True
     dns_suffix: str = ""
+    ipv6_enabled: bool = True
+    ips6: list[IPAddr] = field(default_factory=list)       # origin : Manual, Dhcp, RouterAdvertisement, WellKnown
+    gateways6: list[str] = field(default_factory=list)
+    dns6: list[str] = field(default_factory=list)
+    dns6_static: bool = False
+    router_discovery: bool = True
+
+    @property
+    def ipv6_mode(self) -> str:
+        """disabled / static / auto (SLAAC, DHCPv6)."""
+        if not self.ipv6_enabled:
+            return "disabled"
+        if any(i.origin == "Manual" for i in self.ips6) or not self.router_discovery:
+            return "static"
+        return "auto"
+
+    @property
+    def global_ips6(self) -> list[IPAddr]:
+        """Adresses IPv6 hors lien local (fe80::/10)."""
+        return [i for i in self.ips6 if not i.ip.lower().startswith("fe80")]
 
     @property
     def up(self) -> bool:
@@ -213,6 +233,20 @@ class Adapter:
             "adv": True,
             "metric": "auto" if self.auto_metric or self.metric is None else str(self.metric),
             "dns_suffix": self.dns_suffix,
+            "v6": self.to_v6_config(),
+        }
+
+    def to_v6_config(self) -> dict:
+        mode = self.ipv6_mode
+        manual = [i for i in self.ips6 if i.origin == "Manual"]
+        static = mode == "static"
+        return {
+            "mode": mode,
+            "ip": manual[0].ip if static and manual else "",
+            "prefix": str(manual[0].prefix) if static and manual else "64",
+            "gateway": self.gateways6[0] if static and self.gateways6 else "",
+            "dns1": self.dns6[0] if self.dns6 and (static or self.dns6_static) else "",
+            "dns2": self.dns6[1] if len(self.dns6) > 1 and (static or self.dns6_static) else "",
         }
 
 
@@ -266,7 +300,13 @@ $rts    = Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Group-Object ifIndex -As
 $rtsP   = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -PolicyStore PersistentStore | Group-Object ifIndex -AsHashTable -AsString
 $dnss   = Get-DnsClientServerAddress -AddressFamily IPv4 | Group-Object InterfaceIndex -AsHashTable -AsString
 $dcs    = Get-DnsClient | Group-Object InterfaceIndex -AsHashTable -AsString
-if (-not $dcs) { $dcs=@{} }
+$ipifs6 = Get-NetIPInterface -AddressFamily IPv6 | Group-Object ifIndex -AsHashTable -AsString
+$addrs6 = Get-NetIPAddress -AddressFamily IPv6 | Group-Object InterfaceIndex -AsHashTable -AsString
+$rts6   = Get-NetRoute -DestinationPrefix '::/0' | Group-Object ifIndex -AsHashTable -AsString
+$rts6P  = Get-NetRoute -DestinationPrefix '::/0' -PolicyStore PersistentStore | Group-Object ifIndex -AsHashTable -AsString
+$dnss6  = Get-DnsClientServerAddress -AddressFamily IPv6 | Group-Object InterfaceIndex -AsHashTable -AsString
+$binds6 = Get-NetAdapterBinding -ComponentID ms_tcpip6 | Group-Object Name -AsHashTable -AsString
+foreach ($n in 'dcs','ipifs6','addrs6','rts6','rts6P','dnss6','binds6') { if (-not (Get-Variable $n -ValueOnly)) { Set-Variable $n @{} } }
 if (-not $ipifs) { $ipifs=@{} }; if (-not $addrs) { $addrs=@{} }; if (-not $addrsP) { $addrsP=@{} }
 if (-not $rts) { $rts=@{} }; if (-not $rtsP) { $rtsP=@{} }; if (-not $dnss) { $dnss=@{} }
 $res = foreach ($a in (Get-NetAdapter | Sort-Object ifIndex)) {
@@ -287,6 +327,12 @@ $res = foreach ($a in (Get-NetAdapter | Sort-Object ifIndex)) {
     hardware=[bool]$a.HardwareInterface
     metric=$ipif.InterfaceMetric; automatic_metric=("$($ipif.AutomaticMetric)" -ne 'Disabled')
     dns_suffix="$(($dcs[$i] | Select-Object -First 1).ConnectionSpecificSuffix)"
+    ipv6_enabled=[bool](($binds6[$a.Name] | Select-Object -First 1).Enabled)
+    router_discovery=("$(($ipifs6[$i] | Select-Object -First 1).RouterDiscovery)" -ne 'Disabled')
+    ips6=@($addrs6[$i] | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ip="$($_.IPAddress)".Split('%')[0]; prefix=[int]$_.PrefixLength; origin="$($_.PrefixOrigin)"} })
+    gateways6=@(@($rts6[$i]) + @($rts6P[$i]) | Where-Object { $_ } | ForEach-Object { "$($_.NextHop)" } | Where-Object { $_ -and $_ -ne '::' } | Select-Object -Unique)
+    dns6=@(($dnss6[$i] | Select-Object -First 1).ServerAddresses | Where-Object { $_ -notlike 'fec0:0:0:ffff::*' })
+    dns6_static=[bool]((Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces\$($a.InterfaceGuid)").NameServer)
     ips=@($ips | ForEach-Object { [pscustomobject]@{ip=$_.IPAddress; prefix=[int]$_.PrefixLength; origin="$($_.PrefixOrigin)"} })
     gateways=@($gw | Where-Object { $_ -and $_ -ne '0.0.0.0' } | Select-Object -Unique)
     dns=$dns
@@ -332,6 +378,13 @@ def list_adapters() -> list[Adapter]:
                 metric=d.get("metric"),
                 auto_metric=bool(d.get("automatic_metric", True)),
                 dns_suffix=d.get("dns_suffix") or "",
+                ipv6_enabled=bool(d.get("ipv6_enabled", True)),
+                router_discovery=bool(d.get("router_discovery", True)),
+                ips6=[IPAddr(x["ip"], int(x["prefix"]), x.get("origin", "")) for x in _as_list(d.get("ips6"))
+                      if x and x.get("ip")],
+                gateways6=[g for g in _as_list(d.get("gateways6")) if g],
+                dns6=[s for s in _as_list(d.get("dns6")) if s],
+                dns6_static=bool(d.get("dns6_static")),
             )
         )
     return adapters
@@ -405,6 +458,7 @@ def validate_config(cfg: dict) -> tuple[list[str], list[str]]:
         suffix = (cfg.get("dns_suffix") or "").strip()
         if suffix and not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9-]{1,63})*\.?", suffix):
             errors.append(f"Suffixe DNS invalide : {suffix}")
+    errors += validate_v6(cfg.get("v6"))
     if cfg.get("dns_mode", "static") == "static" or cfg.get("mode") == "static":
         for k, lbl in (("dns1", "DNS primaire"), ("dns2", "DNS secondaire")):
             if (cfg.get(k) or "").strip():
@@ -413,6 +467,85 @@ def validate_config(cfg: dict) -> tuple[list[str], list[str]]:
                 except ValueError as e:
                     errors.append(str(e))
     return errors, warns
+
+
+V6_MODES = ("unchanged", "auto", "static", "disabled")
+
+
+def _check_ip6(value: str, label: str) -> str:
+    try:
+        return str(ipaddress.IPv6Address(value.strip().split("%")[0]))
+    except ValueError:
+        raise ValueError(f"{label} invalide : {value or '(vide)'}") from None
+
+
+def validate_v6(v6: dict | None) -> list[str]:
+    if not v6 or v6.get("mode", "unchanged") in ("unchanged", "disabled"):
+        return []
+    errors = []
+    if v6.get("mode") not in V6_MODES:
+        return [f"Mode IPv6 inconnu : {v6.get('mode')}"]
+    if v6["mode"] == "static":
+        try:
+            ip = ipaddress.IPv6Address(_check_ip6(v6.get("ip", ""), "Adresse IPv6"))
+            if ip.is_link_local or ip.is_multicast or ip.is_unspecified or ip.is_loopback:
+                errors.append(f"{ip} ne peut pas être utilisée comme adresse statique")
+        except ValueError as e:
+            errors.append(str(e))
+        p = str(v6.get("prefix") or "").strip().lstrip("/")
+        if not (p.isdigit() and 1 <= int(p) <= 128):
+            errors.append("Préfixe IPv6 invalide (1 à 128, généralement 64)")
+        if (v6.get("gateway") or "").strip():
+            try:
+                _check_ip6(v6["gateway"], "Passerelle IPv6")
+            except ValueError as e:
+                errors.append(str(e))
+    for k, lbl in (("dns1", "DNS IPv6 primaire"), ("dns2", "DNS IPv6 secondaire")):
+        if (v6.get(k) or "").strip():
+            try:
+                _check_ip6(v6[k], lbl)
+            except ValueError as e:
+                errors.append(str(e))
+    return errors
+
+
+def build_v6_commands(adapter: Adapter, v6: dict | None) -> list[list[str] | str]:
+    """IPv6 : auto (SLAAC/DHCPv6), statique, ou désactivé (liaison ms_tcpip6). « unchanged » ne touche à rien."""
+    if not v6 or v6.get("mode", "unchanged") == "unchanged":
+        return []
+    idx, mode = str(adapter.index), v6["mode"]
+    name = adapter.name.replace("'", "''")
+    if mode == "disabled":
+        return [f"Disable-NetAdapterBinding -Name '{name}' -ComponentID ms_tcpip6 -Confirm:$false"] \
+            if adapter.ipv6_enabled else []
+    cmds: list[list[str] | str] = []
+    if not adapter.ipv6_enabled:
+        cmds.append(f"Enable-NetAdapterBinding -Name '{name}' -ComponentID ms_tcpip6 -Confirm:$false")
+    v6net = ["netsh", "interface", "ipv6"]
+    new_ip = _check_ip6(v6["ip"], "Adresse IPv6") if mode == "static" else None
+    for a in adapter.ips6:   # adresses et routes manuelles précédentes
+        if a.origin == "Manual" and a.ip != new_ip:
+            cmds.append(v6net + ["delete", "address", f"interface={idx}", f"address={a.ip}"])
+    for gw in adapter.gateways6:
+        cmds.append(v6net + ["delete", "route", "prefix=::/0", f"interface={idx}", f"nexthop={gw}"])
+    if mode == "auto":
+        cmds.append(v6net + ["set", "interface", f"interface={idx}", "routerdiscovery=enabled"])
+    else:
+        prefix = str(v6.get("prefix") or "64").strip().lstrip("/")
+        cmds.append(v6net + ["set", "interface", f"interface={idx}", "routerdiscovery=disabled"])
+        cmds.append(v6net + ["add", "address", f"interface={idx}", f"address={new_ip}/{prefix}"])
+        if (v6.get("gateway") or "").strip():
+            cmds.append(v6net + ["add", "route", "prefix=::/0", f"interface={idx}",
+                                 f"nexthop={_check_ip6(v6['gateway'], 'Passerelle IPv6')}"])
+    servers = [_check_ip6(s, "DNS IPv6") for s in (v6.get("dns1"), v6.get("dns2")) if s and s.strip()]
+    if servers:
+        cmds.append(v6net + ["set", "dnsservers", f"name={idx}", "source=static", f"address={servers[0]}",
+                             "register=primary", "validate=no"])
+        for i, s in enumerate(servers[1:], start=2):
+            cmds.append(v6net + ["add", "dnsservers", f"name={idx}", f"address={s}", f"index={i}", "validate=no"])
+    else:
+        cmds.append(v6net + ["set", "dnsservers", f"name={idx}", "source=dhcp"])
+    return cmds
 
 
 # --------------------------------------------------------------------------- #
@@ -461,6 +594,7 @@ def build_commands(adapter: Adapter, cfg: dict) -> list[list[str] | str]:
             cmds.append(f"Set-NetIPInterface -InterfaceIndex {idx} -AddressFamily IPv4 -InterfaceMetric {int(m)}")
         suffix = (cfg.get("dns_suffix") or "").strip().replace("'", "''")
         cmds.append(f"Set-DnsClient -InterfaceIndex {idx} -ConnectionSpecificSuffix '{suffix}'")
+    cmds += build_v6_commands(adapter, cfg.get("v6"))
     return cmds
 
 
