@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 from PIL import Image  # noqa: E402
 
 from netshift import app as A  # noqa: E402
+from netshift import capture as cap  # noqa: E402
 from netshift import netbackend as nb  # noqa: E402
 from netshift import nettools as nt  # noqa: E402
 from netshift import tools_view as tv  # noqa: E402
@@ -115,6 +116,54 @@ def fake_scan(network, on_result, on_progress, stop, **kw):
     on_progress(254, 254)
 
 
+def _ip(src, dst, proto, payload, ttl=64):
+    import socket
+    import struct
+    hdr = struct.pack("!BBHHHBBH4s4s", 0x45, 0, 20 + len(payload), 0x1234, 0x4000, ttl, proto, 0,
+                      socket.inet_aton(src), socket.inet_aton(dst))
+    return hdr + payload
+
+
+def _tcp(sport, dport, flags, data=b"", seq=1000, ack=0):
+    import struct
+    return struct.pack("!HHIIHHHH", sport, dport, seq, ack, (5 << 12) | flags, 64240, 0, 0) + data
+
+
+def _udp(sport, dport, data=b""):
+    import struct
+    return struct.pack("!HHHH", sport, dport, 8 + len(data), 0) + data
+
+
+def _dns(name, tid, response=False):
+    import struct
+    q = b"".join(bytes([len(x)]) + x.encode() for x in name.split(".")) + b"\x00"
+    return struct.pack("!HHHHHH", tid, 0x8180 if response else 0x0100, 1, 1 if response else 0, 0, 0) + q + \
+        struct.pack("!HH", 1, 1)
+
+
+def demo_packets() -> list[bytes]:
+    """Trafic fictif (adresses privées et de documentation) pour la capture d'écran de l'onglet Capture."""
+    me, gw, web, nas = "192.168.10.25", "192.168.10.1", "93.184.216.34", "192.168.10.10"
+    out = [
+        _ip(me, gw, 17, _udp(53122, 53, _dns("example.com", 0x1A2B))),
+        _ip(gw, me, 17, _udp(53, 53122, _dns("example.com", 0x1A2B, True))),
+        _ip(me, web, 6, _tcp(51000, 443, 0x02)),
+        _ip(web, me, 6, _tcp(443, 51000, 0x12, seq=5000, ack=1001)),
+        _ip(me, web, 6, _tcp(51000, 443, 0x10, seq=1001, ack=5001)),
+        _ip(me, web, 6, _tcp(51000, 443, 0x18, b"\x16\x03\x01" + b"\x00" * 200, seq=1001, ack=5001)),
+        _ip(web, me, 6, _tcp(443, 51000, 0x18, b"\x16\x03\x03" + b"\x00" * 1200, seq=5001, ack=1204)),
+        _ip(me, nas, 6, _tcp(51010, 80, 0x18, b"GET /status HTTP/1.1\r\nHost: nas.lan\r\n\r\n")),
+        _ip(nas, me, 6, _tcp(80, 51010, 0x18, b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")),
+        _ip(me, gw, 1, bytes([8, 0, 0, 0, 0, 1, 0, 1]) + b"abcdefgh"),
+        _ip(gw, me, 1, bytes([0, 0, 0, 0, 0, 1, 0, 1]) + b"abcdefgh"),
+        _ip("192.168.10.40", "224.0.0.251", 17, _udp(5353, 5353, _dns("cam-entrance.local", 0))),
+        _ip(me, "192.168.10.20", 6, _tcp(51020, 9100, 0x02)),
+        _ip("192.168.10.20", me, 6, _tcp(9100, 51020, 0x14)),
+        _ip(me, "192.168.10.2", 17, _udp(51888, 161, b"\x30\x26" + b"\x00" * 36)),
+    ]
+    return out * 3
+
+
 def fake_ping(host, timeout_ms=1000, size=32, ttl=128):
     time.sleep(0.02)
     return nt.PingResult(True, rtt=[1, 1, 2, 1, 3, 1, 1, 2][int(time.time() * 10) % 8], ttl=64, reply_from=host)
@@ -127,6 +176,14 @@ nt.ping = fake_ping
 tv.time.sleep = lambda s: None
 tmp = Path(tempfile.mkdtemp())
 A.data_dir = lambda: tmp
+
+
+def inject_capture(app):
+    sec = app.tools.capture
+    sec.clear()
+    t0 = 1_760_000_000.0
+    sec.load_packets([cap.decode(raw, i, t0 + i * 0.0137) for i, raw in enumerate(demo_packets(), 1)])
+    app.after(600, lambda: (sec.tree.selection_set("6"), sec.tree.see("6")))
 
 
 def main():
@@ -157,6 +214,7 @@ def main():
         ("ping", lambda: (app.tools.show("Ping"), app.tools._quick_ping("192.168.10.1"))),
         ("calc", lambda: (app.tools.show("Calcul IP"), app.tools._set_entry(app.tools.calc_ip, "192.168.10.37/26"),
                           app.tools._calc())),
+        ("capture", lambda: (app.tools.show("Capture"), inject_capture(app))),
         ("history", lambda: app.tabs.set("Historique & journal")),
     ]
 

@@ -1273,6 +1273,7 @@ class App(ctk.CTk):
                 self.settings.set("geometry", self.geometry())
         except tk.TclError:
             pass
+        self.tools.capture.shutdown()
         nb._ps.close()
         self.destroy()
 

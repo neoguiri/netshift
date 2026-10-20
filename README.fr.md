@@ -55,16 +55,27 @@ en arrière immédiatement.
 - **Ping** (nombre ou continu, statistiques), **traceroute**
 - **Scan réseau** ICMP **et** ARP : trouve aussi les machines qui bloquent le ping ; clic droit pour
   pinger, scanner les ports, ouvrir en http(s), RDP ou partages
+- **Capture de paquets** : trafic IPv4 en direct sur la carte choisie, filtres façon Wireshark
+  (`tcp port 443`, `dns or icmp`, `host 10.0.0.1 not port 22`…), filtres rapides, détail + hexdump,
+  statistiques (conversations, machines, protocoles), ouverture de fichiers `.pcap`/`.pcapng`
+  (Ethernet, VLAN, ARP, IPv6), export `.pcap` et bouton **Wireshark** lancé directement sur la carte
 - **Test de ports TCP**, **DNS** / nslookup / vider le cache, **calculatrice de sous-réseau**, IP publique
 - **Commandes système** : `ipconfig /all`, table ARP, routes, connexions, profils Wi-Fi…
 
 ## Installation
 
-### Exécutable autonome (recommandé)
+### Installeur (recommandé)
 
-Télécharge `NetShift.exe` depuis la [dernière version](https://github.com/neoguiri/netshift/releases/latest)
-et lance-le. Windows demande les droits administrateur (nécessaires pour modifier l'IP). Pas besoin de
-Python ; les presets sont stockés dans `data\` à côté de l'exe (fonctionne depuis une clé USB).
+Télécharge `NetShift-Setup-x.y.z.exe` depuis la [dernière version](https://github.com/neoguiri/netshift/releases/latest) :
+raccourci dans le menu Démarrer, raccourci bureau en option, désinstallation propre (*Paramètres → Applications*).
+Les presets et l'historique sont dans `%APPDATA%\NetShift` et sont conservés lors des mises à jour.
+
+### Exécutable portable
+
+`NetShift.exe`, dans la même version, se lance sans installation ni Python ; les presets sont alors stockés
+dans `data\` à côté de l'exe (fonctionne depuis une clé USB).
+
+Dans les deux cas, Windows demande les droits administrateur au démarrage (nécessaires pour modifier l'IP).
 
 ### Depuis les sources
 
@@ -77,7 +88,8 @@ cd netshift
 ```
 
 Le lanceur installe l'unique dépendance (CustomTkinter) au premier lancement.
-`build_exe.bat` produit un `dist\NetShift.exe`.
+`build_exe.bat` produit `dist\NetShift.exe`, et l'installeur si [Inno Setup 6](https://jrsoftware.org/isdl.php)
+est installé.
 
 ## Utilisation
 
@@ -116,7 +128,7 @@ PyInstaller et n'est pas signé ; ces exe sont parfois signalés à tort. Tu peu
 
 ## Prochainement
 
-- Outil de capture de paquets avec export `.pcap`, et bouton « Ouvrir dans Wireshark » sur la carte sélectionnée (v1.1)
+- **Gestion des VPN** (1.2) : lister, créer, modifier, supprimer, connecter / déconnecter les connexions VPN Windows
 - Interface en anglais, configuration IPv6
 
 ## Contribuer

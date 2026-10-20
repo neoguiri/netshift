@@ -46,3 +46,14 @@ def test_summarize():
     assert summarize({"mode": "dhcp"}) == "DHCP"
     assert summarize({"mode": "static", "ip": "10.0.0.5", "mask": "255.255.255.0", "gateway": "10.0.0.1"}) \
         == "10.0.0.5/24 · GW 10.0.0.1"
+
+
+def test_data_dir_portable_vs_installed(tmp_path, monkeypatch):
+    from netshift import store
+
+    monkeypatch.setattr(store, "app_dir", lambda: tmp_path)
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    assert store.data_dir() == tmp_path / "data"          # portable : à côté de l'app
+    (tmp_path / "unins000.exe").write_bytes(b"")
+    assert store.is_installed()
+    assert store.data_dir() == tmp_path / "appdata" / "NetShift"   # installé : %APPDATA%

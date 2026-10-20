@@ -62,6 +62,11 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 - **Network scan** — ICMP **and** ARP, so it also finds hosts that block ping on the local subnet;
   right-click a host to ping, port-scan, open `http(s)://`, RDP or browse its shares
 - **TCP port check** — lists (web, Windows, common) or ranges up to the full 1–65535
+- **Packet capture** — live IPv4 capture on the chosen adapter (TCP, UDP, ICMP, DNS, HTTP, TLS…),
+  Wireshark-style display filters (`tcp port 443`, `dns or icmp`, `host 10.0.0.1 not port 22`…),
+  one-click quick filters, packet details + hexdump, conversation / host / protocol statistics,
+  open existing `.pcap` / `.pcapng` files (Ethernet, VLAN, ARP, IPv6), export to `.pcap`, and
+  **Open in Wireshark** already capturing on the selected adapter
 - **DNS** — resolve, reverse lookup, `nslookup` against a specific server, flush cache
 - **Subnet calculator** — network, broadcast, host range, wildcard, binary; public IP lookup
 - **System** — `ipconfig /all`, ARP table, routing table, active connections, Wi-Fi profiles…
@@ -71,22 +76,28 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 | Presets | Network scan |
 |---|---|
 | ![Presets](docs/screenshots/presets-dark.png) | ![Network scan](docs/screenshots/scan-dark.png) |
-| **Ping** | **History & log** |
-| ![Ping](docs/screenshots/ping-dark.png) | ![History](docs/screenshots/history-light.png) |
+| **Packet capture** | **History & log** |
+| ![Packet capture](docs/screenshots/capture-dark.png) | ![History](docs/screenshots/history-light.png) |
 
 Light and dark themes (or follow Windows). More in [`docs/screenshots`](docs/screenshots).
 
 ## Installation
 
-### Option 1 — standalone executable (recommended)
+### Option 1 — installer (recommended)
 
-1. Download `NetShift.exe` from the [latest release](https://github.com/neoguiri/netshift/releases/latest).
-2. Run it. Windows asks for administrator rights (required to change IP settings).
+Download `NetShift-Setup-x.y.z.exe` from the [latest release](https://github.com/neoguiri/netshift/releases/latest)
+and run it: Start-menu shortcut, optional desktop shortcut, clean uninstaller (*Settings → Apps*).
+Presets and history live in `%APPDATA%\NetShift` and survive updates and uninstalls.
 
-No Python needed. Settings and presets are stored in a `data` folder next to the executable, so it
-works from a USB stick.
+### Option 2 — portable executable
 
-### Option 2 — from source
+Download `NetShift.exe` from the same release and run it — no installation, no Python. Presets are stored
+in a `data` folder next to the executable, so it works from a USB stick.
+
+Both ask for administrator rights at start-up (required to change IP settings). `SHA256SUMS.txt` lists
+the checksums of the release files.
+
+### Option 3 — from source
 
 Requires Windows 10/11 and [Python 3.9+](https://www.python.org/downloads/) (tick *Add to PATH*).
 
@@ -112,7 +123,8 @@ Use the *Créer un raccourci sur le bureau* button in the sidebar to add a deskt
 build_exe.bat
 ```
 
-Produces `dist\NetShift.exe` with PyInstaller.
+Produces `dist\NetShift.exe` with PyInstaller, and `dist\NetShift-Setup-<version>.exe` if
+[Inno Setup 6](https://jrsoftware.org/isdl.php) is installed (script: `installer/netshift.iss`).
 
 ## Usage
 
@@ -135,6 +147,9 @@ and a banner offers to relaunch elevated.
   about 3 s, subsequent refreshes about 0.25 s.
 - **Applying** uses the standard `netsh interface ipv4` commands, addressed by interface index
   (robust to localized or non-ASCII adapter names). The exact commands are shown in the log.
+- **Packet capture** uses a raw socket in promiscuous-receive mode (`SIO_RCVALL`, admin rights): no driver to
+  install, IPv4 only. For a full capture (Ethernet, ARP, VLAN, Wi-Fi), the *Wireshark* button launches
+  Wireshark/Npcap on the selected adapter.
 - **Ping, traceroute and ARP** call the Windows IP Helper API (`IcmpSendEcho`, `SendARP`) via `ctypes`:
   fast, no console windows, no raw sockets, no admin rights needed.
 - **No telemetry, no network calls** except the ones you trigger (the public-IP button queries
@@ -144,8 +159,8 @@ More details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Data
 
-Stored as plain JSON in `data/` next to the app (falls back to `%APPDATA%\NetShift` if that folder
-is not writable):
+Stored as plain JSON — in `%APPDATA%\NetShift` for the installed version, in `data/` next to the app for the
+portable version and source checkouts (falling back to `%APPDATA%\NetShift` if that folder is not writable):
 
 | File | Content |
 |---|---|
@@ -171,7 +186,9 @@ Yes — any adapter listed by `Get-NetAdapter` (Ethernet, Wi-Fi, USB, virtual).
 
 ## Roadmap
 
-- [ ] Packet capture tool with `.pcap` export, and *Open in Wireshark* on the selected adapter (v1.1)
+- [x] Packet capture with filters, statistics, `.pcap`/`.pcapng` import/export and Wireshark launch (1.1)
+- [x] Windows installer (1.1)
+- [ ] **VPN management** (1.2): list, create, edit, delete, connect / disconnect Windows VPN connections
 - [ ] English interface / i18n
 - [ ] IPv6 configuration
 - [ ] Per-preset target adapter and quick-switch from the system tray

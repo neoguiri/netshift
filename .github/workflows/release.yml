@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build NetShift.exe
+    name: Build NetShift.exe + installer
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,25 +19,61 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: python -m pip install -r requirements.txt pyinstaller
-      - name: Build
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $v = python -c "import netshift; print(netshift.__version__)"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$v") {
+            throw "Le tag $env:GITHUB_REF_NAME ne correspond pas à la version du code ($v)"
+          }
+          "value=$v" >> $env:GITHUB_OUTPUT
+      - name: Build executable
         run: >
           pyinstaller --noconfirm --onefile --windowed --uac-admin --name NetShift
           --icon assets/netshift.ico --add-data "assets;assets" --collect-all customtkinter
           NetShift.pyw
-      - name: Checksum
+      - name: Build installer
         shell: pwsh
         run: |
-          $h = (Get-FileHash dist/NetShift.exe -Algorithm SHA256).Hash
-          "$h  NetShift.exe" | Out-File dist/NetShift.exe.sha256 -Encoding ascii
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=${{ steps.version.outputs.value }}" installer\netshift.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC a échoué" }
+      - name: Test installer (install, check, uninstall)
+        shell: pwsh
+        run: |
+          $setup = "dist\NetShift-Setup-${{ steps.version.outputs.value }}.exe"
+          $p = Start-Process $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=desktopicon' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installation : code $($p.ExitCode)" }
+          $app = "$env:ProgramFiles\NetShift"
+          foreach ($f in "NetShift.exe", "unins000.exe", "LICENSE.txt") {
+            if (-not (Test-Path "$app\$f")) { throw "Fichier manquant après installation : $f" }
+          }
+          $lnk = Get-ChildItem "$env:ProgramData\Microsoft\Windows\Start Menu\Programs" -Recurse -Filter "NetShift.lnk"
+          if (-not $lnk) { throw "Raccourci du menu Démarrer manquant" }
+          $p = Start-Process "$app\unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          Start-Sleep -Seconds 3
+          if (Test-Path "$app\NetShift.exe") { throw "Désinstallation incomplète" }
+          "Installeur OK : installation, raccourcis et désinstallation vérifiés"
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -Filter *.exe | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash)  $($_.Name)"
+          } | Out-File dist/SHA256SUMS.txt -Encoding ascii
+          Get-Content dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: NetShift
-          path: dist/NetShift.exe*
+          name: NetShift-${{ steps.version.outputs.value }}
+          path: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/NetShift-Setup-${{ steps.version.outputs.value }}.exe
             dist/NetShift.exe
-            dist/NetShift.exe.sha256
+            dist/SHA256SUMS.txt
           generate_release_notes: true

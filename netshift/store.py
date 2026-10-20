@@ -20,18 +20,32 @@ def resource_dir() -> Path:
     return Path(getattr(sys, "_MEIPASS", app_dir()))
 
 
+def is_installed(base: Path | None = None) -> bool:
+    """Vrai si NetShift a été installé (installeur Inno Setup) plutôt que lancé en version portable."""
+    base = base or app_dir()
+    return (base / "unins000.exe").exists()
+
+
+def user_data_dir() -> Path:
+    return Path(os.environ.get("APPDATA", Path.home())) / "NetShift"
+
+
 def data_dir() -> Path:
-    d = app_dir() / "data"
-    try:
-        d.mkdir(exist_ok=True)
-        probe = d / ".write_test"
-        probe.write_text("ok")
-        probe.unlink()
-        return d
-    except OSError:
-        d = Path(os.environ.get("APPDATA", Path.home())) / "NetShift"
-        d.mkdir(parents=True, exist_ok=True)
-        return d
+    """Version installée : %APPDATA%\\NetShift (conservé lors des mises à jour et désinstallations).
+    Version portable : dossier data\\ à côté de l'application (repli sur %APPDATA% si non inscriptible)."""
+    if not is_installed():
+        d = app_dir() / "data"
+        try:
+            d.mkdir(exist_ok=True)
+            probe = d / ".write_test"
+            probe.write_text("ok")
+            probe.unlink()
+            return d
+        except OSError:
+            pass
+    d = user_data_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 EMPTY_CONFIG = {

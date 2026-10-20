@@ -1,4 +1,4 @@
-"""Onglet Outils : ping, traceroute, scan réseau, ports, DNS, calculatrice, commandes système."""
+"""Onglet Outils : ping, traceroute, scan réseau, ports, capture, DNS, calculatrice, commandes système."""
 from __future__ import annotations
 
 import ipaddress
@@ -14,6 +14,7 @@ import customtkinter as ctk
 
 from . import netbackend as nb
 from . import nettools as nt
+from .capture_view import CaptureSection
 from .ui import (
     ACCENT,
     BORDER,
@@ -35,7 +36,7 @@ from .ui import (
 
 
 class ToolsView(ctk.CTkFrame):
-    SECTIONS = ["Ping", "Traceroute", "Scan réseau", "Ports", "DNS", "Calcul IP", "Système"]
+    SECTIONS = ["Ping", "Traceroute", "Scan réseau", "Ports", "Capture", "DNS", "Calcul IP", "Système"]
 
     def __init__(self, master, app):
         super().__init__(master, fg_color="transparent")
@@ -49,7 +50,8 @@ class ToolsView(ctk.CTkFrame):
         self.frames: dict[str, ctk.CTkFrame] = {}
         builders = {
             "Ping": self._build_ping, "Traceroute": self._build_trace, "Scan réseau": self._build_scan,
-            "Ports": self._build_ports, "DNS": self._build_dns, "Calcul IP": self._build_calc,
+            "Ports": self._build_ports, "Capture": self._build_capture, "DNS": self._build_dns,
+            "Calcul IP": self._build_calc,
             "Système": self._build_system,
         }
         for name, fn in builders.items():
@@ -579,6 +581,10 @@ class ToolsView(ctk.CTkFrame):
 
         threading.Thread(target=work, daemon=True).start()
 
+    # ================================================================ CAPTURE
+    def _build_capture(self, f):
+        self.capture = CaptureSection(f, self.app)
+
     # ==================================================================== DNS
     def _build_dns(self, f):
         f.grid_rowconfigure(3, weight=1)
@@ -743,5 +749,6 @@ class ToolsView(ctk.CTkFrame):
     # ------------------------------------------------------------------ theme
     def restyle(self):
         style_treeview(self)
+        self.capture.restyle()
         for c in (self.ping_out, self.tr_out, self.port_out, self.dns_out, self.sys_out):
             c._refresh_tags()

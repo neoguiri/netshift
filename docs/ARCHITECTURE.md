@@ -4,7 +4,7 @@ NetShift is a single-process Tkinter app (CustomTkinter widgets). Everything tha
 runs in background threads; results come back to the UI thread through a queue.
 
 ```
-NetShift.pyw              entry point: DPI awareness, UAC self-elevation, starts App
+NetShift.pyw               entry point: DPI awareness, UAC self-elevation, starts App
 netshift/
 ├── __init__.py            __version__
 ├── netbackend.py          Windows access: read adapters, build/apply netsh commands, adapter actions
@@ -12,9 +12,13 @@ netshift/
 ├── store.py               JSON persistence: presets, history (undo), settings; data folder resolution
 ├── ui.py                  palette, fonts, widget helpers, TabHost, Console, dialogs, ConfigForm
 ├── app.py                 main window: sidebar, header, Configuration / Presets / History tabs
-└── tools_view.py          Tools tab: ping, traceroute, scan, ports, DNS, calculator, system commands
-scripts/make_screenshots.py  documentation screenshots with fictitious data
-tests/                     pytest suite for the pure logic
+├── tools_view.py          Tools tab: ping, traceroute, scan, ports, DNS, calculator, system commands
+├── capture.py             packet decoding, display filters, pcap/pcapng I/O, statistics, raw-socket capture
+└── capture_view.py        Tools → Capture UI (table, details, filters, statistics, Wireshark)
+installer/netshift.iss     Inno Setup script (built and tested by the Release workflow)
+scripts/make_screenshots.py  documentation screenshots with fictitious data (rendered with PrintWindow)
+scripts/make_icon.py       generates the app icon and logos
+tests/                     pytest suite (pure logic, capture decoding, screenshot guard)
 ```
 
 ## Reading adapter state
@@ -72,3 +76,20 @@ Tk is not thread-safe. Two helpers in `App` handle this:
 
 `main()` relaunches itself through `ShellExecuteW(..., "runas", ...)` when not elevated. If the user
 declines, the app runs read-only: viewing and tools work, and anything that modifies the system is disabled.
+
+## Packet capture
+
+`capture.RawCapture` opens a raw IPv4 socket bound to the adapter's address and enables `SIO_RCVALL`
+(administrator rights required). Datagrams are decoded in the capture thread (`capture.decode`) and
+queued; the UI drains the queue every 200 ms, keeping at most 50 000 packets in memory and 5 000 rows in
+the table. Display filters are compiled once into predicates (`compile_filter`), so re-filtering is a
+single pass. Files are read by `read_capture_file` (pcap µs/ns in both byte orders, pcapng) and frames
+decoded by `decode_frame` (Ethernet, VLAN, ARP, IPv6, raw IP, Linux SLL). Exports use pcap with
+`LINKTYPE_RAW` (IPv4 datagrams), which Wireshark opens directly.
+
+## Installer
+
+`installer/netshift.iss` packages `dist\NetShift.exe` with Inno Setup (Program Files, Start-menu entry,
+optional desktop icon, uninstaller). The Release workflow builds it and runs a silent install → file and
+shortcut checks → silent uninstall before publishing. An installed copy is detected by the presence of
+`unins000.exe` next to the exe, and then stores its data in `%APPDATA%\NetShift`.
