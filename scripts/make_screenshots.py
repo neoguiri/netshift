@@ -29,6 +29,7 @@ from netshift import capture as cap  # noqa: E402
 from netshift import netbackend as nb  # noqa: E402
 from netshift import nettools as nt  # noqa: E402
 from netshift import tools_view as tv  # noqa: E402
+from netshift import vpn  # noqa: E402
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "screenshots"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -93,6 +94,22 @@ DEMO_ADAPTERS = [
                "{demo-3}", False, True, False, 1500, [nb.IPAddr("169.254.77.12", 16, "WellKnown")], [], []),
     nb.Adapter("Ethernet 2", "Realtek USB GbE Family Controller", "Disconnected", "50-3E-AA-01-02-03", "0 bps", 7,
                "{demo-4}", False, False, True, 1500, [nb.IPAddr("10.0.0.10", 24, "Manual")], [], []),
+]
+
+DEMO_ADAPTERS[1].kind = "wifi"
+DEMO_ADAPTERS += [
+    nb.Adapter("wg-bureau", "WireGuard Tunnel", "Up", "", "1 Gbps", 41, "{demo-5}", False, False, True, 1420,
+               [nb.IPAddr("10.66.0.12", 32, "Manual")], [], ["10.66.0.1"], kind="vpn"),
+    nb.Adapter("Bluetooth", "Bluetooth Device (Personal Area Network)", "Disconnected", "A4-6B-B6-44-55-66",
+               "0 bps", 22, "{demo-6}", False, True, False, 1500, [], [], [], kind="bluetooth"),
+]
+
+DEMO_VPNS = [
+    vpn.Vpn("VPN Bureau", "vpn.example.com", tunnel="Ikev2", auth="Eap", split=True, remember=True,
+            dns_suffix="corp.example", routes=["10.0.0.0/8", "172.16.0.0/12"], status="Connected",
+            ips=["10.20.99.14/32"]),
+    vpn.Vpn("Atelier (L2TP)", "203.0.113.10", tunnel="L2tp", auth="MSChapv2", all_users=True),
+    vpn.Vpn("Client — support", "support.example.net", tunnel="Sstp", auth="MSChapv2", remember=False),
 ]
 
 DEMO_HOSTS = [
@@ -170,6 +187,7 @@ def fake_ping(host, timeout_ms=1000, size=32, ttl=128):
 
 
 nb.list_adapters = lambda: [a for a in DEMO_ADAPTERS]
+vpn.list_vpns = lambda: list(DEMO_VPNS)
 nb.is_admin = lambda: True
 nt.scan_hosts = fake_scan
 nt.ping = fake_ping
@@ -215,6 +233,7 @@ def main():
         ("calc", lambda: (app.tools.show("Calcul IP"), app.tools._set_entry(app.tools.calc_ip, "192.168.10.37/26"),
                           app.tools._calc())),
         ("capture", lambda: (app.tools.show("Capture"), inject_capture(app))),
+        ("vpn", lambda: app.tabs.set("VPN")),
         ("history", lambda: app.tabs.set("Historique & journal")),
     ]
 

@@ -6,6 +6,20 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-20
+
+### Added
+- **VPN tab**: list Windows VPN connections (current user and all users) with live status and IP; create, edit,
+  duplicate, rename, delete (server, tunnel type, authentication, encryption, L2TP pre-shared key, DNS suffix,
+  split tunneling and routes); connect with saved credentials, one-time credentials or the Windows dialog;
+  disconnect; explanations for common `rasdial` errors. The pre-shared key is never written to the log.
+- Adapter types (Ethernet, Wi-Fi, VPN, Bluetooth, mobile, virtual, other) with a badge on each card and
+  one-click chips to show or hide each type; count of hidden adapters under the list.
+
+### Changed
+- "Virtual adapters" switch replaced by the per-type chips (previous setting migrated).
+- Disconnected Wi-Fi / Bluetooth / VPN adapters show "Déconnectée" instead of "Câble déconnecté".
+
 ## [1.1.0] - 2026-10-20
 
 ### Added
@@ -42,6 +56,7 @@ First public release.
 - Light / dark / system theme, automatic UAC elevation with read-only fallback, desktop shortcut.
 - Standalone `NetShift.exe` built by GitHub Actions for each release.
 
-[Unreleased]: https://github.com/neoguiri/netshift/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/neoguiri/netshift/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/neoguiri/netshift/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/neoguiri/netshift/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/neoguiri/netshift/releases/tag/v1.0.0

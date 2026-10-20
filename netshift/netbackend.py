@@ -179,6 +179,7 @@ class Adapter:
     ips: list[IPAddr] = field(default_factory=list)
     gateways: list[str] = field(default_factory=list)
     dns: list[str] = field(default_factory=list)
+    kind: str = "ethernet"   # voir KINDS / classify()
 
     @property
     def up(self) -> bool:
@@ -208,6 +209,47 @@ class Adapter:
         }
 
 
+# --------------------------------------------------------------------------- #
+#  Type de carte (pour l'affichage et les filtres)
+# --------------------------------------------------------------------------- #
+KINDS = {  # clé : (libellé, libellé court)
+    "ethernet": ("Ethernet", "ETH"),
+    "wifi": ("Wi-Fi", "WI-FI"),
+    "mobile": ("Mobile (4G/5G)", "WWAN"),
+    "vpn": ("VPN", "VPN"),
+    "bluetooth": ("Bluetooth", "BT"),
+    "virtual": ("Virtuelles", "VIRT"),
+    "other": ("Autres", "AUTRE"),
+}
+
+_VPN_HINTS = ("wireguard", "wintun", "openvpn", "tap-windows", "tap adapter", "tap-protonvpn", "vpn", "anyconnect",
+              "fortinet", "fortissl", "fortivpn", "globalprotect", "pangp", "juniper", "pulse secure", "zscaler",
+              "nordlynx", "tailscale", "zerotier", "forticlient", "check point", "sonicwall", "f5 ", "wan miniport")
+_VIRTUAL_HINTS = ("hyper-v", "vethernet", "vmware", "virtualbox", "parallels", "virtio", "loopback", "npcap",
+                  "docker", "wsl", "kernel debug", "teredo", "isatap", "6to4", "host-only", "qemu", "xen ")
+
+
+def classify(name: str, description: str, media: str = "", physical: str = "", if_type: int = 0,
+             virtual: bool = False, hardware: bool = True) -> str:
+    """Devine le type d'une carte à partir des propriétés renvoyées par Get-NetAdapter."""
+    text = f"{name} {description}".lower()
+    media, physical = (media or "").lower(), (physical or "").lower()
+    if if_type in (23, 131) or any(h in text for h in _VPN_HINTS):          # PPP, tunnel
+        return "vpn"
+    if "bluetooth" in physical or "bluetooth" in text:
+        return "bluetooth"
+    if "wireless wan" in media or "wwan" in physical or "mobile broadband" in text or if_type == 243:
+        return "mobile"
+    if "802.11" in media or "802.11" in physical or if_type == 71 or any(
+            h in text for h in ("wi-fi", "wifi", "wireless", "wlan")):
+        return "wifi"
+    if virtual or any(h in text for h in _VIRTUAL_HINTS) or (not hardware and if_type != 6):
+        return "virtual"
+    if "802.3" in media or "802.3" in physical or if_type == 6:
+        return "ethernet"
+    return "other"
+
+
 _PS_LIST = r"""
 $ErrorActionPreference='SilentlyContinue'
 $ipifs  = Get-NetIPInterface -AddressFamily IPv4 | Group-Object ifIndex -AsHashTable -AsString
@@ -232,6 +274,8 @@ $res = foreach ($a in (Get-NetAdapter | Sort-Object ifIndex)) {
     name=$a.Name; desc=$a.InterfaceDescription; status="$($a.Status)"; mac=$a.MacAddress
     speed="$($a.LinkSpeed)"; index=[int]$a.ifIndex; guid="$($a.InterfaceGuid)"; virtual=[bool]$a.Virtual
     dhcp=$dhcp; dns_static=[bool]($reg.NameServer); mtu=$ipif.NlMtu
+    media="$($a.MediaType)"; physical="$($a.PhysicalMediaType)"; iftype=[int]$a.InterfaceType
+    hardware=[bool]$a.HardwareInterface
     ips=@($ips | ForEach-Object { [pscustomobject]@{ip=$_.IPAddress; prefix=[int]$_.PrefixLength; origin="$($_.PrefixOrigin)"} })
     gateways=@($gw | Where-Object { $_ -and $_ -ne '0.0.0.0' } | Select-Object -Unique)
     dns=$dns
@@ -271,6 +315,9 @@ def list_adapters() -> list[Adapter]:
                 ips=[IPAddr(x["ip"], int(x["prefix"]), x.get("origin", "")) for x in _as_list(d.get("ips")) if x and x.get("ip")],
                 gateways=[g for g in _as_list(d.get("gateways")) if g],
                 dns=[s for s in _as_list(d.get("dns")) if s],
+                kind=classify(d.get("name") or "", d.get("desc") or "", d.get("media") or "",
+                              d.get("physical") or "", int(d.get("iftype") or 0), bool(d.get("virtual")),
+                              bool(d.get("hardware", True))),
             )
         )
     return adapters

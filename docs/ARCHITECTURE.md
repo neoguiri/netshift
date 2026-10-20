@@ -14,7 +14,9 @@ netshift/
 ├── app.py                 main window: sidebar, header, Configuration / Presets / History tabs
 ├── tools_view.py          Tools tab: ping, traceroute, scan, ports, DNS, calculator, system commands
 ├── capture.py             packet decoding, display filters, pcap/pcapng I/O, statistics, raw-socket capture
-└── capture_view.py        Tools → Capture UI (table, details, filters, statistics, Wireshark)
+├── capture_view.py        Tools → Capture UI (table, details, filters, statistics, Wireshark)
+├── vpn.py                 Windows VPN connections: read, validate, build PowerShell commands, rasdial
+└── vpn_view.py            VPN tab (list, editor, connect / disconnect)
 installer/netshift.iss     Inno Setup script (built and tested by the Release workflow)
 scripts/make_screenshots.py  documentation screenshots with fictitious data (rendered with PrintWindow)
 scripts/make_icon.py       generates the app icon and logos
@@ -93,3 +95,18 @@ decoded by `decode_frame` (Ethernet, VLAN, ARP, IPv6, raw IP, Linux SLL). Export
 optional desktop icon, uninstaller). The Release workflow builds it and runs a silent install → file and
 shortcut checks → silent uninstall before publishing. An installed copy is detected by the presence of
 `unins000.exe` next to the exe, and then stores its data in `%APPDATA%\NetShift`.
+
+## VPN
+
+`vpn.list_vpns()` reads `Get-VpnConnection` for both scopes (current user / `-AllUserConnection`) in one
+PowerShell call. Changes are built as PowerShell command strings by pure functions (`build_create`,
+`build_update` — which diffs split-tunnel routes —, `build_remove`, `build_recreate` for renames, since Windows
+cannot rename a VPN), all single-quote escaped and unit-tested. The L2TP pre-shared key is masked before any
+command is logged. Connecting uses `rasdial` (saved or one-time credentials, never stored by NetShift) or the
+Windows dialog (`rasphone -d`); disconnecting uses `rasdial /disconnect`.
+
+## Adapter types
+
+`netbackend.classify()` derives a type from `Get-NetAdapter` fields (MediaType, PhysicalMediaType,
+InterfaceType, Virtual, HardwareInterface) and well-known driver names (WireGuard, TAP, AnyConnect, Hyper-V,
+Parallels…). Hidden types are stored in `settings.json` (`hidden_kinds`).

@@ -37,6 +37,7 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 
 **Network adapters**
 - Live list of every adapter with link state (connected, cable unplugged, disabled), IP, DHCP/static, APIPA detection
+- Adapters are classified (Ethernet, Wi-Fi, VPN, Bluetooth, mobile, virtual) — show or hide each type with one click
 - Auto-refresh every 5 s: plugging a cable or getting a new lease shows up immediately and is logged
 - Enable / disable, rename, change MTU, renew / release DHCP — per adapter
 
@@ -51,6 +52,14 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 - Create, edit, duplicate, reorder, search; free-text notes (site, device, VLAN…)
 - Apply any preset to any adapter; double-click applies it to the selected one
 - Import / export as JSON to share with your team
+
+**VPN**
+- Lists the Windows VPN connections (current user and all users) with live status and assigned IP
+- Create, edit, duplicate, rename and delete: server, tunnel type (IKEv2, SSTP, L2TP/IPsec, PPTP, automatic),
+  authentication, encryption, L2TP pre-shared key, DNS suffix, split tunneling with its routes
+- Connect with saved credentials, with credentials typed for this connection only, or through the Windows dialog;
+  disconnect; readable explanations for the common `rasdial` errors (691, 800, 809…)
+- Third-party clients (WireGuard, OpenVPN, AnyConnect, FortiClient…) appear in the adapter list as *VPN*
 
 **History & undo**
 - Every applied change stores the previous configuration
@@ -76,8 +85,8 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 | Presets | Network scan |
 |---|---|
 | ![Presets](docs/screenshots/presets-dark.png) | ![Network scan](docs/screenshots/scan-dark.png) |
-| **Packet capture** | **History & log** |
-| ![Packet capture](docs/screenshots/capture-dark.png) | ![History](docs/screenshots/history-light.png) |
+| **Packet capture** | **VPN** |
+| ![Packet capture](docs/screenshots/capture-dark.png) | ![VPN](docs/screenshots/vpn-dark.png) |
 
 Light and dark themes (or follow Windows). More in [`docs/screenshots`](docs/screenshots).
 
@@ -188,7 +197,8 @@ Yes — any adapter listed by `Get-NetAdapter` (Ethernet, Wi-Fi, USB, virtual).
 
 - [x] Packet capture with filters, statistics, `.pcap`/`.pcapng` import/export and Wireshark launch (1.1)
 - [x] Windows installer (1.1)
-- [ ] **VPN management** (1.2): list, create, edit, delete, connect / disconnect Windows VPN connections
+- [x] **VPN management** (1.2): list, create, edit, delete, connect / disconnect Windows VPN connections
+- [x] Show / hide adapters by type (1.2)
 - [ ] English interface / i18n
 - [ ] IPv6 configuration
 - [ ] Per-preset target adapter and quick-switch from the system tray

@@ -20,4 +20,7 @@ NetShift runs with administrator rights in order to change network settings. Rel
   executes anything; presets are validated before being applied.
 - The app makes no network calls on its own, except the optional public-IP lookup (`api.ipify.org`,
   with fallbacks) when you click that button.
+- VPN: the L2TP pre-shared key is masked in the log. Credentials typed for a one-time connection are passed
+  to `rasdial` and never stored by NetShift (note that, like any command-line argument, they are briefly
+  visible to other processes of the same user while `rasdial` runs; use the *Windows dialog* option to avoid it).
 - Release executables are built from source by GitHub Actions. They are not code-signed.

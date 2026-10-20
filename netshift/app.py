@@ -54,6 +54,7 @@ from .ui import (
     style_treeview,
     ui_scale,
 )
+from .vpn_view import VpnView
 
 APP_NAME = "NetShift"
 VERSION = __version__
@@ -98,12 +99,15 @@ class AdapterCard(ctk.CTkFrame):
         self.dot = label(self, "●", ctk.CTkFont("Segoe UI", 11), height=18, width=10)
         self.dot.grid(row=0, column=0, sticky="w", padx=(10, 6), pady=(7, 0))
         self.name = label(self, "", Fonts.h3, anchor="w", height=18)
-        self.name.grid(row=0, column=1, sticky="ew", pady=(7, 0), padx=(0, 10))
+        self.name.grid(row=0, column=1, sticky="ew", pady=(7, 0), padx=(0, 4))
+        self.badge = ctk.CTkLabel(self, text="", font=ctk.CTkFont("Segoe UI", 9, "bold"), height=16,
+                                  corner_radius=4, fg_color=GREY_SOFT, text_color=MUTED)
+        self.badge.grid(row=0, column=2, sticky="e", pady=(7, 0), padx=(0, 10))
         self.ip = label(self, "", Fonts.mono_small, anchor="w", height=16)
-        self.ip.grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(1, 0))
+        self.ip.grid(row=1, column=1, columnspan=2, sticky="ew", padx=(0, 10), pady=(1, 0))
         self.desc = label(self, "", Fonts.small, MUTED, anchor="w", height=15)
-        self.desc.grid(row=2, column=1, sticky="ew", pady=(0, 7), padx=(0, 10))
-        for w in (self, self.dot, self.name, self.ip, self.desc):
+        self.desc.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(0, 7), padx=(0, 10))
+        for w in (self, self.dot, self.name, self.badge, self.ip, self.desc):
             w.bind("<Button-1>", lambda e: self.on_click(self.adapter.guid))
             w.bind("<Enter>", lambda e: self._hover(True))
             w.bind("<Leave>", lambda e: self._hover(False))
@@ -115,13 +119,14 @@ class AdapterCard(ctk.CTkFrame):
         color = GREEN if a.up else (RED if a.disabled else MUTED)
         self.dot.configure(text_color=color)
         self.name.configure(text=a.name)
+        self.badge.configure(text=f" {nb.KINDS.get(a.kind, nb.KINDS['other'])[1]} ")
         p = a.primary_ip
         if a.disabled:
             ip_txt, ip_col = "Désactivée", RED
         elif p and not p.ip.startswith("169.254."):
             ip_txt, ip_col = f"{p.ip}/{p.prefix}" + ("  · DHCP" if a.dhcp else ""), TEXT
         elif not a.up:
-            ip_txt, ip_col = "Câble déconnecté", MUTED
+            ip_txt, ip_col = ("Câble déconnecté" if a.kind == "ethernet" else "Déconnectée"), MUTED
         else:
             ip_txt, ip_col = ("APIPA " + p.ip if p else "Aucune IP"), ORANGE
         self.ip.configure(text=ip_txt, text_color=ip_col)
@@ -237,6 +242,8 @@ class App(ctk.CTk):
         else:
             self.progress.stop()
             self.progress.grid_remove()
+            if self.status.cget("text").endswith("…"):   # message d'attente non remplacé par un toast
+                self.status.configure(text="Prêt", text_color=MUTED)
 
     def toast(self, msg: str, kind: str = "info"):
         colors = {"ok": GREEN, "err": RED, "warn": ORANGE, "info": TEXT}
@@ -280,10 +287,17 @@ class App(ctk.CTk):
 
         head = ctk.CTkFrame(sb, fg_color="transparent")
         head.grid(row=1, column=0, sticky="ew", padx=18, pady=(4, 4))
-        label(head, "CARTES RÉSEAU", Fonts.small_bold, MUTED).pack(side="left")
-        self.refresh_btn = button(head, "⟳", self.refresh_adapters, kind="ghost", width=30, height=26,
+        top = ctk.CTkFrame(head, fg_color="transparent")
+        top.pack(fill="x")
+        label(top, "CARTES RÉSEAU", Fonts.small_bold, MUTED).pack(side="left")
+        self.refresh_btn = button(top, "⟳", self.refresh_adapters, kind="ghost", width=30, height=26,
                                   font=ctk.CTkFont("Segoe UI", 15))
         self.refresh_btn.pack(side="right")
+        self.kind_bar = ctk.CTkFrame(head, fg_color="transparent")
+        self.kind_bar.pack(fill="x", pady=(4, 0))
+        self._kind_sig = None
+        if "hidden_kinds" not in self.settings.data:   # reprise de l'ancien réglage « cartes virtuelles »
+            self.settings.set("hidden_kinds", [] if self.settings.get("show_virtual", True) else ["virtual"])
 
         self.card_list = ctk.CTkScrollableFrame(sb, fg_color="transparent", corner_radius=0)
         self.card_list.grid(row=2, column=0, sticky="nsew", padx=(10, 4))
@@ -298,11 +312,6 @@ class App(ctk.CTk):
         if self.settings.get("show_disconnected", True):
             self.show_down.select()
         self.show_down.pack(anchor="w", pady=2)
-        self.show_virtual = ctk.CTkSwitch(opts, text="Cartes virtuelles", font=Fonts.small, text_color=MUTED,
-                                          progress_color=ACCENT, command=self._toggle_show_virtual)
-        if self.settings.get("show_virtual", True):
-            self.show_virtual.select()
-        self.show_virtual.pack(anchor="w", pady=2)
         self.auto_refresh = ctk.CTkSwitch(opts, text="Actualisation auto (5 s)", font=Fonts.small, text_color=MUTED,
                                           progress_color=ACCENT,
                                           command=lambda: self.settings.set("auto_refresh",
@@ -344,8 +353,33 @@ class App(ctk.CTk):
         self.settings.set("show_disconnected", bool(self.show_down.get()))
         self._render_cards(force=True)
 
-    def _toggle_show_virtual(self):
-        self.settings.set("show_virtual", bool(self.show_virtual.get()))
+    def _render_kind_chips(self):
+        """Une pastille par type de carte présent : clic = afficher / masquer ce type."""
+        counts: dict[str, int] = {}
+        for a in self.adapters:
+            counts[a.kind] = counts.get(a.kind, 0) + 1
+        hidden = set(self.settings.get("hidden_kinds", []))
+        sig = (tuple(sorted(counts.items())), tuple(sorted(hidden)))
+        if sig == self._kind_sig:
+            return
+        self._kind_sig = sig
+        for w in self.kind_bar.winfo_children():
+            w.destroy()
+        kinds = [k for k in nb.KINDS if k in counts]
+        for i, k in enumerate(kinds):
+            shown = k not in hidden
+            b = ctk.CTkButton(self.kind_bar, text=f"{nb.KINDS[k][0]} {counts[k]}", width=0, height=22,
+                              corner_radius=11, font=Fonts.small, border_width=1,
+                              fg_color=ACCENT_SOFT if shown else "transparent", hover_color=HOVER,
+                              border_color=ACCENT if shown else BORDER, text_color=ACCENT if shown else MUTED,
+                              command=lambda k=k: self._toggle_kind(k))
+            b.grid(row=i // 3, column=i % 3, sticky="w", padx=(0, 4), pady=2)
+
+    def _toggle_kind(self, kind: str):
+        hidden = set(self.settings.get("hidden_kinds", []))
+        hidden.symmetric_difference_update({kind})
+        self.settings.set("hidden_kinds", sorted(hidden))
+        self._render_kind_chips()
         self._render_cards(force=True)
 
     def _set_theme(self, v):
@@ -360,16 +394,18 @@ class App(ctk.CTk):
         self.journal._refresh_tags()
 
     def _visible_adapters(self) -> list[nb.Adapter]:
+        hidden = set(self.settings.get("hidden_kinds", []))
         out = []
         for a in self.adapters:
             if not self.show_down.get() and not a.up and a.guid != self.selected_guid:
                 continue
-            if not self.show_virtual.get() and a.virtual and a.guid != self.selected_guid:
+            if a.kind in hidden and a.guid != self.selected_guid:
                 continue
             out.append(a)
         return out
 
     def _render_cards(self, force=False):
+        self._render_kind_chips()
         visible = self._visible_adapters()
         keys = [a.guid for a in visible]
         if force or keys != list(self.cards.keys()):
@@ -381,9 +417,11 @@ class App(ctk.CTk):
                 c = AdapterCard(self.card_list, a, self.select_adapter)
                 c.grid(row=i + 1, column=0, sticky="ew", pady=3, padx=(0, 6))
                 self.cards[a.guid] = c
-            if not visible:
-                self.loading_lbl.configure(text="Aucune carte à afficher")
-                self.loading_lbl.grid()
+            masked = len(self.adapters) - len(visible)
+            if not visible or masked:
+                txt = f"{masked} carte(s) masquée(s) par les filtres" if masked else "Aucune carte à afficher"
+                self.loading_lbl.configure(text=txt)
+                self.loading_lbl.grid(row=len(visible) + 1, column=0, pady=(6, 10))
         else:
             for a in visible:
                 self.cards[a.guid].update_adapter(a)
@@ -407,18 +445,27 @@ class App(ctk.CTk):
 
         self._build_header(main)
 
-        self.tabs = TabHost(main, ["Configuration", "Presets", "Outils", "Historique & journal"],
+        self.tabs = TabHost(main, ["Configuration", "Presets", "VPN", "Outils", "Historique & journal"],
                             command=self._on_tab)
         self.tabs.grid(row=2, column=0, sticky="nsew", pady=(14, 0))
         self._build_config_tab(self.tabs.tab("Configuration"))
         self._build_presets_tab(self.tabs.tab("Presets"))
+        self.vpn = VpnView(self.tabs.tab("VPN"), self)
+        self.vpn.grid(row=0, column=0, sticky="nsew")
+        self._vpn_loaded = False
         self.tools = ToolsView(self.tabs.tab("Outils"), self)
         self.tools.grid(row=0, column=0, sticky="nsew")
         self._build_history_tab(self.tabs.tab("Historique & journal"))
 
     def _on_tab(self):
-        if hasattr(self, "hist_list") and self.tabs.get() == "Historique & journal":
+        if not hasattr(self, "tabs"):   # appelé par TabHost pendant sa construction
+            return
+        tab = self.tabs.get()
+        if hasattr(self, "hist_list") and tab == "Historique & journal":
             self._render_history()
+        elif tab == "VPN" and hasattr(self, "vpn"):
+            self.vpn.refresh(quiet=self._vpn_loaded)
+            self._vpn_loaded = True
 
     # ----------------------------------------------------------------- header
     def _build_header(self, main):

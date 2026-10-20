@@ -1,6 +1,6 @@
 [project]
 name = "netshift"
-version = "1.1.0"
+version = "1.2.0"
 description = "Modern Windows GUI to manage network adapter IP configurations, presets and network tools."
 readme = "README.md"
 license = { file = "LICENSE" }

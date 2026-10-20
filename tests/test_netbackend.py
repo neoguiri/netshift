@@ -87,3 +87,20 @@ def test_adapter_to_config_roundtrip():
 def test_primary_ip_skips_apipa():
     a = make_adapter(ips=[nb.IPAddr("169.254.3.4", 16), nb.IPAddr("192.168.1.10", 24)])
     assert a.primary_ip.ip == "192.168.1.10"
+
+
+@pytest.mark.parametrize("args,kind", [
+    (("Ethernet", "Intel(R) Ethernet Connection I219-LM", "802.3", "802.3", 6), "ethernet"),
+    (("Wi-Fi", "Intel(R) Wi-Fi 6E AX211 160MHz", "Native 802.11", "Native 802.11", 71), "wifi"),
+    (("Connexion réseau Bluetooth", "Bluetooth Device (Personal Area Network)", "802.3", "BlueTooth", 6), "bluetooth"),
+    (("wg0", "WireGuard Tunnel", "", "Unspecified", 53), "vpn"),
+    (("Ethernet 3", "TAP-Windows Adapter V9", "802.3", "Unspecified", 6), "vpn"),
+    (("Ethernet 4", "Cisco AnyConnect Secure Mobility Client Virtual Miniport Adapter", "802.3", "", 6), "vpn"),
+    (("vEthernet (WSL)", "Hyper-V Virtual Ethernet Adapter", "802.3", "Unspecified", 6), "virtual"),
+    (("Ethernet", "Parallels VirtIO Ethernet Adapter", "802.3", "Unspecified", 6), "virtual"),
+    (("Cellular", "Generic Mobile Broadband Adapter", "Wireless WAN", "Wireless WAN", 243), "mobile"),
+    (("Bizarre", "Something", "", "", 1), "other"),
+])
+def test_classify(args, kind):
+    assert nb.classify(*args) == kind
+    assert kind in nb.KINDS

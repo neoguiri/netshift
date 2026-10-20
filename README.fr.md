@@ -32,6 +32,7 @@ en arrière immédiatement.
 
 **Cartes réseau**
 - Liste en direct : état (connectée, câble débranché, désactivée), IP, DHCP/fixe, détection APIPA
+- Cartes classées par type (Ethernet, Wi-Fi, VPN, Bluetooth, mobile, virtuelles) : chaque type s'affiche ou se masque d'un clic
 - Actualisation automatique toutes les 5 s (branchement de câble, nouveau bail DHCP notés au journal)
 - Activer / désactiver, renommer, MTU, renouveler / libérer le DHCP
 
@@ -46,6 +47,14 @@ en arrière immédiatement.
 - Créer, modifier, dupliquer, réordonner, rechercher, ajouter des notes (site, équipement, VLAN…)
 - Appliquer n'importe quel preset à n'importe quelle carte ; double-clic = carte sélectionnée
 - Import / export JSON pour partager avec l'équipe
+
+**VPN**
+- Liste des connexions VPN Windows (utilisateur courant et tous les utilisateurs), état et IP en direct
+- Créer, modifier, dupliquer, renommer, supprimer : serveur, type de tunnel (IKEv2, SSTP, L2TP/IPsec, PPTP,
+  automatique), authentification, chiffrement, clé pré-partagée L2TP, suffixe DNS, split tunneling et ses routes
+- Connexion avec les identifiants mémorisés, avec des identifiants saisis pour cette fois, ou via la fenêtre Windows ;
+  déconnexion ; explication claire des erreurs `rasdial` courantes (691, 800, 809…)
+- Les clients tiers (WireGuard, OpenVPN, AnyConnect, FortiClient…) apparaissent dans les cartes avec le type « VPN »
 
 **Historique et retour arrière**
 - Chaque changement conserve la configuration précédente
@@ -128,7 +137,6 @@ PyInstaller et n'est pas signé ; ces exe sont parfois signalés à tort. Tu peu
 
 ## Prochainement
 
-- **Gestion des VPN** (1.2) : lister, créer, modifier, supprimer, connecter / déconnecter les connexions VPN Windows
 - Interface en anglais, configuration IPv6
 
 ## Contribuer
