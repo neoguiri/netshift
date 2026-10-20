@@ -36,3 +36,14 @@ def test_ping_localhost():
 def test_ping_unknown_host():
     r = nt.ping("does-not-exist.invalid", 500)
     assert not r.ok
+
+
+@pytest.mark.parametrize("mac,vendor", [
+    ("B8-27-EB-98-76-54", "Raspberry Pi Foundation"),
+    ("00:0c:29:aa:bb:cc", "VMware"),
+    ("0e-11-22-33-44-55", "Adresse privée (aléatoire)"),   # bit « administré localement »
+    ("", ""),
+    ("zz", ""),
+])
+def test_mac_vendor(mac, vendor):
+    assert nt.mac_vendor(mac) == vendor

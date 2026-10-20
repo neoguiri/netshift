@@ -6,6 +6,23 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-20
+
+### Added
+- **System tray icon** (pystray): open NetShift, apply any preset in two clicks (directly on its default adapter,
+  or by picking an adapter), adapter status at a glance, quit. Optional "close = minimize to tray" and a Windows
+  notification when a change is applied while the window is hidden.
+- **Default adapter per preset**, used by Apply, double-click and the tray menu; kept (shown as "absente")
+  while the adapter is unplugged.
+- **Advanced options** in the configuration editor: interface metric (auto or 1–9999) and connection-specific
+  DNS suffix; both shown in the current configuration and captured in the undo history.
+- **Manufacturer column** in the network scan, from the embedded IEEE OUI registry (`scripts/update_oui.py`);
+  randomized/private MAC addresses are flagged.
+
+### Changed
+- New runtime dependencies: `pystray` and `pillow` (the app still starts without them, just without the tray icon).
+- GitHub Actions updated (checkout, setup-python, upload-artifact v7, action-gh-release v3).
+
 ## [1.2.0] - 2026-10-20
 
 ### Added
@@ -56,7 +73,8 @@ First public release.
 - Light / dark / system theme, automatic UAC elevation with read-only fallback, desktop shortcut.
 - Standalone `NetShift.exe` built by GitHub Actions for each release.
 
-[Unreleased]: https://github.com/neoguiri/netshift/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/neoguiri/netshift/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/neoguiri/netshift/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/neoguiri/netshift/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/neoguiri/netshift/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/neoguiri/netshift/releases/tag/v1.0.0

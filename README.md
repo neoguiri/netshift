@@ -45,12 +45,14 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 - Side-by-side *current* vs *new* configuration; click any current value to copy it
 - DHCP or static, mask as `255.255.255.0` **or** `/24`, one-click `.1` gateway, secondary IPs
 - Manual DNS even in DHCP mode, public DNS shortcuts (Cloudflare, Google, Quad9, OpenDNS)
+- Advanced options: interface metric (route priority) and connection-specific DNS suffix
 - Live validation: network/broadcast address, gateway outside subnet, malformed entries…
 - Confirmation dialog summarising the change, then an automatic gateway ping to verify it worked
 
 **Presets**
 - Create, edit, duplicate, reorder, search; free-text notes (site, device, VLAN…)
-- Apply any preset to any adapter; double-click applies it to the selected one
+- Optional default adapter per preset (kept even while a USB adapter is unplugged)
+- Apply any preset to any adapter; double-click applies it to its default adapter (or the selected one)
 - Import / export as JSON to share with your team
 
 **VPN**
@@ -61,6 +63,10 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
   disconnect; readable explanations for the common `rasdial` errors (691, 800, 809…)
 - Third-party clients (WireGuard, OpenVPN, AnyConnect, FortiClient…) appear in the adapter list as *VPN*
 
+**System tray**
+- Tray icon with a menu: open NetShift, **apply a preset in two clicks**, see every adapter's state
+- Optional "close = minimize to tray"; Windows notification when a change is applied in the background
+
 **History & undo**
 - Every applied change stores the previous configuration
 - *Undo last change*, *Restore previous* or *Re-apply* from the history; exportable activity log
@@ -69,6 +75,7 @@ pick a card, pick a preset, apply. Every change is recorded so you can roll back
 - **Ping** — count or continuous, live loss / min / avg / max
 - **Traceroute** — ICMP with optional reverse DNS
 - **Network scan** — ICMP **and** ARP, so it also finds hosts that block ping on the local subnet;
+  shows the **manufacturer** from the MAC address (embedded IEEE registry, no network lookup);
   right-click a host to ping, port-scan, open `http(s)://`, RDP or browse its shares
 - **TCP port check** — lists (web, Windows, common) or ranges up to the full 1–65535
 - **Packet capture** — live IPv4 capture on the chosen adapter (TCP, UDP, ICMP, DNS, HTTP, TLS…),
@@ -116,8 +123,8 @@ cd netshift
 "Lancer NetShift.bat"
 ```
 
-The launcher installs the only dependency ([CustomTkinter](https://github.com/TomSchimansky/CustomTkinter))
-on first run, then starts the app. Or manually:
+The launcher installs the dependencies ([CustomTkinter](https://github.com/TomSchimansky/CustomTkinter),
+[pystray](https://github.com/moses-palmer/pystray) and Pillow for the tray icon) on first run, then starts the app. Or manually:
 
 ```bat
 pip install -r requirements.txt
@@ -201,9 +208,9 @@ Yes — any adapter listed by `Get-NetAdapter` (Ethernet, Wi-Fi, USB, virtual).
 - [x] Show / hide adapters by type (1.2)
 - [ ] English interface / i18n
 - [ ] IPv6 configuration
-- [ ] Per-preset target adapter and quick-switch from the system tray
-- [ ] Custom DNS suffix, WINS, interface metric
-- [ ] MAC vendor lookup in the network scan
+- [x] Per-preset default adapter and quick-switch from the system tray (1.3)
+- [x] Interface metric and connection DNS suffix (1.3)
+- [x] MAC vendor lookup in the network scan (1.3)
 - [ ] Code-signed release builds
 
 Ideas and votes welcome in [issues](https://github.com/neoguiri/netshift/issues).

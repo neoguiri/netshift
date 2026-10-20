@@ -104,3 +104,31 @@ def test_primary_ip_skips_apipa():
 def test_classify(args, kind):
     assert nb.classify(*args) == kind
     assert kind in nb.KINDS
+
+
+def test_advanced_options_commands():
+    base = {"mode": "dhcp", "dns_mode": "auto", "adv": True, "metric": "15", "dns_suffix": "corp.example"}
+    cmds = nb.build_commands(make_adapter(), base)
+    assert "Set-NetIPInterface -InterfaceIndex 12 -AddressFamily IPv4 -InterfaceMetric 15" in cmds
+    assert "Set-DnsClient -InterfaceIndex 12 -ConnectionSpecificSuffix 'corp.example'" in cmds
+    auto = nb.build_commands(make_adapter(), {**base, "metric": "auto", "dns_suffix": ""})
+    assert "Set-NetIPInterface -InterfaceIndex 12 -AddressFamily IPv4 -AutomaticMetric Enabled" in auto
+    assert "Set-DnsClient -InterfaceIndex 12 -ConnectionSpecificSuffix ''" in auto
+    assert all(isinstance(c, list) for c in nb.build_commands(make_adapter(), {**base, "adv": False}))
+
+
+@pytest.mark.parametrize("metric,suffix,ok", [
+    ("auto", "", True), ("1", "corp.example", True), ("9999", "a-b.c", True),
+    ("0", "", False), ("abc", "", False), ("10", "bad suffix", False), ("10", "-x.com", False),
+])
+def test_advanced_options_validation(metric, suffix, ok):
+    errors, _ = nb.validate_config({"mode": "dhcp", "dns_mode": "auto", "adv": True, "metric": metric,
+                                    "dns_suffix": suffix})
+    assert (not errors) == ok, errors
+
+
+def test_to_config_includes_advanced():
+    a = make_adapter(metric=25, auto_metric=False, dns_suffix="lab.local")
+    cfg = a.to_config()
+    assert cfg["adv"] and cfg["metric"] == "25" and cfg["dns_suffix"] == "lab.local"
+    assert make_adapter().to_config()["metric"] == "auto"

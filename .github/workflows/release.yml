@@ -13,7 +13,7 @@ jobs:
     name: Build NetShift.exe + installer
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -31,7 +31,7 @@ jobs:
       - name: Build executable
         run: >
           pyinstaller --noconfirm --onefile --windowed --uac-admin --name NetShift
-          --icon assets/netshift.ico --add-data "assets;assets" --collect-all customtkinter
+          --icon assets/netshift.ico --add-data "assets;assets" --collect-all customtkinter --collect-submodules pystray
           NetShift.pyw
       - name: Build installer
         shell: pwsh

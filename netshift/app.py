@@ -19,6 +19,7 @@ from . import netbackend as nb
 from . import nettools as nt
 from .store import History, PresetStore, Settings, app_dir, data_dir, normalize_config, resource_dir, summarize
 from .tools_view import ToolsView
+from .tray import Tray
 from .ui import (
     ACCENT,
     ACCENT_SOFT,
@@ -59,6 +60,7 @@ from .vpn_view import VpnView
 APP_NAME = "NetShift"
 VERSION = __version__
 LOAD_PRESET = "Charger un preset…"
+NO_TARGET = "Aucune (carte sélectionnée)"
 
 
 def describe(cfg: dict) -> str:
@@ -82,6 +84,9 @@ def describe(cfg: dict) -> str:
     else:
         dns = ", ".join(d for d in (cfg["dns1"], cfg["dns2"]) if d) or "aucun"
         lines.append(f"DNS        : {dns}")
+    if cfg.get("adv"):
+        lines.append(f"Métrique   : {cfg.get('metric') or 'auto'}")
+        lines.append(f"Suffixe DNS: {cfg.get('dns_suffix') or 'aucun'}")
     return "\n".join(lines)
 
 
@@ -191,6 +196,9 @@ class App(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(40, self._pump)
         self.after(100, lambda: self.refresh_adapters(first=True))
+        self._quitting = False
+        self._tray_hint_shown = False
+        self.tray = Tray(self)
         self.log(f"{APP_NAME} {VERSION} démarré — {'administrateur' if self.admin else 'LECTURE SEULE (pas admin)'}"
                  f" — données : {ddir}", "muted")
 
@@ -325,6 +333,12 @@ class App(ctk.CTk):
         if self.settings.get("confirm", True):
             self.confirm_sw.select()
         self.confirm_sw.pack(anchor="w", pady=2)
+        self.tray_sw = ctk.CTkSwitch(opts, text="Fermer = réduire dans la zone de notif.", font=Fonts.small,
+                                     text_color=MUTED, progress_color=ACCENT,
+                                     command=lambda: self.settings.set("close_to_tray", bool(self.tray_sw.get())))
+        if self.settings.get("close_to_tray", False):
+            self.tray_sw.select()
+        self.tray_sw.pack(anchor="w", pady=2)
 
         bottom = ctk.CTkFrame(sb, fg_color="transparent")
         bottom.grid(row=4, column=0, sticky="ew", padx=18, pady=(12, 16))
@@ -636,6 +650,12 @@ class App(ctk.CTk):
                 rows.append((f"DNS ({dns_src})" if i == 0 else "", d, TEXT))
         else:
             rows.append(("DNS", "aucun", MUTED))
+        metric = "auto" if a.auto_metric else str(a.metric or "—")
+        if a.auto_metric and a.metric:
+            metric += f" ({a.metric})"
+        rows.append(("Métrique", metric, TEXT))
+        if a.dns_suffix:
+            rows.append(("Suffixe DNS", a.dns_suffix, TEXT))
         if a.primary_ip and a.primary_ip.ip.startswith("169.254."):
             rows.append(("", "⚠ APIPA : aucun serveur DHCP n'a répondu", ORANGE))
 
@@ -733,9 +753,13 @@ class App(ctk.CTk):
             self.history.add(adapter.name, adapter.description, before, cfg, label_txt, ok)
             if ok:
                 self.toast(f"Configuration appliquée à {adapter.name}", "ok")
+                if self.state() != "normal":
+                    self.tray.notify(f"{label_txt} appliqué à {adapter.name}")
                 self.log(f"✓ Configuration appliquée à {adapter.name}", "ok")
             else:
                 self.toast(f"Échec partiel sur {adapter.name} — voir le journal", "err")
+                if self.state() != "normal":
+                    self.tray.notify(f"Échec sur {adapter.name} — voir le journal de NetShift")
                 self.log(f"✕ Des erreurs sont survenues sur {adapter.name}", "err")
             self.refresh_adapters(quiet=True)
             for delay in (2000, 5000, 10000):
@@ -908,7 +932,7 @@ class App(ctk.CTk):
         io.grid_columnconfigure((0, 1), weight=1)
         button(io, "Importer…", self.import_presets, height=30).grid(row=0, column=0, sticky="ew", padx=(0, 4))
         button(io, "Exporter…", self.export_presets, height=30).grid(row=0, column=1, sticky="ew", padx=(4, 0))
-        label(left, "Double-clic : appliquer à la carte sélectionnée", Fonts.small, MUTED).grid(row=4, column=0,
+        label(left, "Double-clic : appliquer (carte par défaut, sinon sélectionnée)", Fonts.small, MUTED).grid(row=4, column=0,
                                                                                                 pady=(0, 10))
 
         right = card(wrap)
@@ -926,6 +950,10 @@ class App(ctk.CTk):
         self.pe_name.grid(row=1, column=0, sticky="ew", padx=(0, 6))
         self.pe_desc = entry(meta, "Notes (lieu, équipement, VLAN…)", width=0)
         self.pe_desc.grid(row=1, column=1, sticky="ew", padx=(6, 0))
+        label(meta, "Carte par défaut (appliquer, double-clic, zone de notification)", Fonts.small, MUTED).grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        self.pe_default = option_menu(meta, [NO_TARGET], width=0)
+        self.pe_default.grid(row=3, column=0, sticky="ew", padx=(0, 6))
         scroll = ctk.CTkScrollableFrame(right, fg_color="transparent")
         scroll.grid(row=2, column=0, sticky="nsew", padx=(10, 6), pady=(12, 0))
         scroll.grid_columnconfigure(0, weight=1)
@@ -993,11 +1021,16 @@ class App(ctk.CTk):
             n = label(c, p["name"], Fonts.h3, anchor="w", height=18)
             n.grid(row=0, column=1, sticky="ew", pady=(7, 0), padx=(0, 10))
             summ = "Adresse attribuée automatiquement" if summarize(p["config"]) == "DHCP" else summarize(p["config"])
+            target = self.preset_adapter(p)
+            target_txt = ""
+            if p.get("adapter"):
+                target_txt = f"→ {target.name}" if target else f"→ {p['adapter'].get('name', '?')} (absente)"
+            details = "  ·  ".join(x for x in (target_txt, p["description"]) if x)
             s = label(c, summ, Fonts.mono_small, MUTED, anchor="w", height=16)
-            s.grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(1, 0 if p["description"] else 7))
+            s.grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(1, 0 if details else 7))
             widgets = [c, badge, n, s]
-            if p["description"]:
-                d = label(c, p["description"], Fonts.small, MUTED, anchor="w", justify="left", wraplength=250,
+            if details:
+                d = label(c, details, Fonts.small, MUTED, anchor="w", justify="left", wraplength=250,
                           height=15)
                 d.grid(row=2, column=1, sticky="ew", padx=(0, 10), pady=(0, 7))
                 widgets.append(d)
@@ -1029,9 +1062,30 @@ class App(ctk.CTk):
             self.pe_desc.insert(0, p["description"])
             self.pe_form.set_config(p["config"])
         self._update_preset_target()
+        target = self.preset_adapter(p) if p else None
+        ref = (p or {}).get("adapter")
+        if target:
+            self.pe_default.set(target.name)
+        elif ref:   # carte mémorisée mais absente (adaptateur USB débranché…) : on la conserve
+            absent = f"{ref.get('name', '?')} (absente)"
+            self.pe_default.configure(values=[NO_TARGET, absent] + [a.name for a in self.adapters])
+            self.pe_default.set(absent)
+        else:
+            self.pe_default.set(NO_TARGET)
+        if target:
+            self.pe_target.set(target.name)
+
+    def preset_adapter(self, p: dict | None) -> nb.Adapter | None:
+        """Carte par défaut d'un preset : par GUID, sinon par nom (presets importés d'un autre poste)."""
+        ref = (p or {}).get("adapter") or {}
+        if not ref:
+            return None
+        return next((a for a in self.adapters if a.guid == ref.get("guid")), None) or \
+            next((a for a in self.adapters if a.name == ref.get("name")), None)
 
     def _update_preset_target(self):
         names = [a.name for a in self.adapters] or ["—"]
+        self.pe_default.configure(values=[NO_TARGET] + [a.name for a in self.adapters])
         self.pe_target.configure(values=names)
         cur = self.pe_target.get()
         if cur not in names:
@@ -1057,7 +1111,10 @@ class App(ctk.CTk):
         name = self.pe_name.get().strip() or p["name"]
         if name != p["name"] and self.presets.by_name(name):
             name = self.presets.unique_name(name)
-        self.presets.update(p["id"], name=name, description=self.pe_desc.get().strip(), config=cfg)
+        default = next((a for a in self.adapters if a.name == self.pe_default.get()), None)
+        ref = {"guid": default.guid, "name": default.name} if default else (
+            p.get("adapter") if self.pe_default.get() not in (NO_TARGET, "") and p.get("adapter") else None)
+        self.presets.update(p["id"], name=name, description=self.pe_desc.get().strip(), config=cfg, adapter=ref)
         self._presets_changed()
         self.toast(f"Preset « {name} » enregistré", "ok")
 
@@ -1089,7 +1146,7 @@ class App(ctk.CTk):
 
     def _apply_preset_quick(self, pid):
         p = self.presets.get(pid)
-        a = self.selected
+        a = self.preset_adapter(p) or self.selected
         if p and a:
             self.apply(a, p["config"], f"Preset « {p['name']} »")
 
@@ -1314,12 +1371,41 @@ class App(ctk.CTk):
 
         self.bg(lambda: nb.run_ps(ps), done)
 
+    # ------------------------------------------------------ zone de notification
+    def show_window(self):
+        self.deiconify()
+        self.state("normal")
+        self.lift()
+        self.focus_force()
+
+    def tray_apply(self, pid: str, guid: str):
+        p = self.presets.get(pid)
+        a = next((x for x in self.adapters if x.guid == guid), None)
+        if not p or not a:
+            self.tray.notify("Preset ou carte introuvable")
+            return
+        if self.settings.get("confirm", True) or not self.admin:
+            self.show_window()   # la confirmation (ou le message de droits) s'affiche dans la fenêtre
+        self.apply(a, p["config"], f"Preset « {p['name']} »")
+
+    def quit_app(self):
+        self._quitting = True
+        self._on_close()
+
     def _on_close(self):
+        if not self._quitting and self.settings.get("close_to_tray", False) and self.tray.available:
+            self.withdraw()
+            if not self._tray_hint_shown:
+                self._tray_hint_shown = True
+                self.tray.notify("NetShift reste disponible dans la zone de notification "
+                                 "(clic droit pour les presets, « Quitter » pour fermer).")
+            return
         try:
             if self.state() == "normal":
                 self.settings.set("geometry", self.geometry())
         except tk.TclError:
             pass
+        self.tray.stop()
         self.tools.capture.shutdown()
         nb._ps.close()
         self.destroy()

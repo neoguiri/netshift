@@ -51,6 +51,7 @@ def data_dir() -> Path:
 EMPTY_CONFIG = {
     "mode": "static", "ip": "", "mask": "255.255.255.0", "gateway": "",
     "dns_mode": "static", "dns1": "", "dns2": "", "extra_ips": [],
+    "adv": False, "metric": "auto", "dns_suffix": "",
 }
 
 DEFAULT_PRESETS = [
@@ -93,6 +94,8 @@ def summarize(cfg: dict) -> str:
         s += f" · GW {cfg['gateway']}"
     if cfg["extra_ips"]:
         s += f" · +{len(cfg['extra_ips'])} IP"
+    if cfg.get("adv") and str(cfg.get("metric", "auto")) != "auto":
+        s += f" · métrique {cfg['metric']}"
     return s
 
 
@@ -127,6 +130,7 @@ class PresetStore:
         p.setdefault("id", uuid.uuid4().hex[:12])
         p.setdefault("name", "Sans nom")
         p.setdefault("description", "")
+        p.setdefault("adapter", None)   # {"guid", "name"} de la carte par défaut, ou None
         p["config"] = normalize_config(p.get("config"))
         return p
 

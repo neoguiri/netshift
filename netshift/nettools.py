@@ -100,6 +100,29 @@ def arp_lookup(ip: str) -> str:
     return "-".join(f"{b:02X}" for b in mac[: length.value])
 
 
+_OUI: dict[str, str] | None = None
+
+
+def mac_vendor(mac: str) -> str:
+    """Fabricant d'après le préfixe MAC (registre IEEE embarqué, aucune requête réseau)."""
+    global _OUI
+    h = "".join(c for c in (mac or "").upper() if c in "0123456789ABCDEF")
+    if len(h) < 6:
+        return ""
+    if int(h[:2], 16) & 0x02:
+        return "Adresse privée (aléatoire)"
+    if _OUI is None:
+        try:
+            import gzip
+
+            from .store import resource_dir
+            raw = gzip.decompress((resource_dir() / "assets" / "oui.tsv.gz").read_bytes()).decode("utf-8")
+            _OUI = dict(line.split("\t", 1) for line in raw.splitlines() if "\t" in line)
+        except OSError:
+            _OUI = {}
+    return _OUI.get(h[:6], "")
+
+
 def reverse_dns(ip: str) -> str:
     try:
         return socket.gethostbyaddr(ip)[0]

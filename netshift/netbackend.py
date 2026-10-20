@@ -6,6 +6,7 @@ import ctypes
 import ipaddress
 import json
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -180,6 +181,9 @@ class Adapter:
     gateways: list[str] = field(default_factory=list)
     dns: list[str] = field(default_factory=list)
     kind: str = "ethernet"   # voir KINDS / classify()
+    metric: int | None = None
+    auto_metric: bool = True
+    dns_suffix: str = ""
 
     @property
     def up(self) -> bool:
@@ -206,6 +210,9 @@ class Adapter:
             "dns1": self.dns[0] if len(self.dns) > 0 and (self.dns_static or not self.dhcp) else "",
             "dns2": self.dns[1] if len(self.dns) > 1 and (self.dns_static or not self.dhcp) else "",
             "extra_ips": [] if self.dhcp else [f"{i.ip}/{i.prefix}" for i in self.ips if p and i.ip != p.ip],
+            "adv": True,
+            "metric": "auto" if self.auto_metric or self.metric is None else str(self.metric),
+            "dns_suffix": self.dns_suffix,
         }
 
 
@@ -258,6 +265,8 @@ $addrsP = Get-NetIPAddress -AddressFamily IPv4 -PolicyStore PersistentStore | Gr
 $rts    = Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Group-Object ifIndex -AsHashTable -AsString
 $rtsP   = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -PolicyStore PersistentStore | Group-Object ifIndex -AsHashTable -AsString
 $dnss   = Get-DnsClientServerAddress -AddressFamily IPv4 | Group-Object InterfaceIndex -AsHashTable -AsString
+$dcs    = Get-DnsClient | Group-Object InterfaceIndex -AsHashTable -AsString
+if (-not $dcs) { $dcs=@{} }
 if (-not $ipifs) { $ipifs=@{} }; if (-not $addrs) { $addrs=@{} }; if (-not $addrsP) { $addrsP=@{} }
 if (-not $rts) { $rts=@{} }; if (-not $rtsP) { $rtsP=@{} }; if (-not $dnss) { $dnss=@{} }
 $res = foreach ($a in (Get-NetAdapter | Sort-Object ifIndex)) {
@@ -276,6 +285,8 @@ $res = foreach ($a in (Get-NetAdapter | Sort-Object ifIndex)) {
     dhcp=$dhcp; dns_static=[bool]($reg.NameServer); mtu=$ipif.NlMtu
     media="$($a.MediaType)"; physical="$($a.PhysicalMediaType)"; iftype=[int]$a.InterfaceType
     hardware=[bool]$a.HardwareInterface
+    metric=$ipif.InterfaceMetric; automatic_metric=("$($ipif.AutomaticMetric)" -ne 'Disabled')
+    dns_suffix="$(($dcs[$i] | Select-Object -First 1).ConnectionSpecificSuffix)"
     ips=@($ips | ForEach-Object { [pscustomobject]@{ip=$_.IPAddress; prefix=[int]$_.PrefixLength; origin="$($_.PrefixOrigin)"} })
     gateways=@($gw | Where-Object { $_ -and $_ -ne '0.0.0.0' } | Select-Object -Unique)
     dns=$dns
@@ -318,6 +329,9 @@ def list_adapters() -> list[Adapter]:
                 kind=classify(d.get("name") or "", d.get("desc") or "", d.get("media") or "",
                               d.get("physical") or "", int(d.get("iftype") or 0), bool(d.get("virtual")),
                               bool(d.get("hardware", True))),
+                metric=d.get("metric"),
+                auto_metric=bool(d.get("automatic_metric", True)),
+                dns_suffix=d.get("dns_suffix") or "",
             )
         )
     return adapters
@@ -384,6 +398,13 @@ def validate_config(cfg: dict) -> tuple[list[str], list[str]]:
                     split_ip_prefix(extra, prefix)
         except ValueError as e:
             errors.append(str(e))
+    if cfg.get("adv"):
+        m = str(cfg.get("metric") or "auto").strip().lower()
+        if m != "auto" and not (m.isdigit() and 1 <= int(m) <= 9999):
+            errors.append("Métrique invalide : « auto » ou un entier de 1 à 9999")
+        suffix = (cfg.get("dns_suffix") or "").strip()
+        if suffix and not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9-]{1,63})*\.?", suffix):
+            errors.append(f"Suffixe DNS invalide : {suffix}")
     if cfg.get("dns_mode", "static") == "static" or cfg.get("mode") == "static":
         for k, lbl in (("dns1", "DNS primaire"), ("dns2", "DNS secondaire")):
             if (cfg.get(k) or "").strip():
@@ -401,7 +422,8 @@ def _netsh(*args: str) -> list[str]:
     return ["netsh", "interface", "ipv4", *args]
 
 
-def build_commands(adapter: Adapter, cfg: dict) -> list[list[str]]:
+def build_commands(adapter: Adapter, cfg: dict) -> list[list[str] | str]:
+    """Liste de commandes : argv netsh (list) ou script PowerShell (str)."""
     n = f"name={adapter.index}"
     cmds: list[list[str]] = []
     if cfg.get("mode") == "dhcp":
@@ -430,14 +452,27 @@ def build_commands(adapter: Adapter, cfg: dict) -> list[list[str]]:
             cmds.append(_netsh("set", "dnsservers", n, "source=static", "address=none", "register=primary", "validate=no"))
     else:
         cmds.append(_netsh("set", "dnsservers", n, "source=dhcp"))
+    if cfg.get("adv"):
+        idx = adapter.index
+        m = str(cfg.get("metric") or "auto").strip().lower()
+        if m == "auto":
+            cmds.append(f"Set-NetIPInterface -InterfaceIndex {idx} -AddressFamily IPv4 -AutomaticMetric Enabled")
+        else:
+            cmds.append(f"Set-NetIPInterface -InterfaceIndex {idx} -AddressFamily IPv4 -InterfaceMetric {int(m)}")
+        suffix = (cfg.get("dns_suffix") or "").strip().replace("'", "''")
+        cmds.append(f"Set-DnsClient -InterfaceIndex {idx} -ConnectionSpecificSuffix '{suffix}'")
     return cmds
 
 
 def apply_config(adapter: Adapter, cfg: dict, log=print) -> bool:
     ok = True
     for cmd in build_commands(adapter, cfg):
-        log("$ " + " ".join(cmd))
-        code, out = run(cmd, timeout=60)
+        if isinstance(cmd, str):
+            log("PS> " + cmd)
+            code, out = run_ps(cmd, timeout=60)
+        else:
+            log("$ " + " ".join(cmd))
+            code, out = run(cmd, timeout=60)
         if out:
             log(out)
         # netsh renvoie 1 quand la config est déjà identique ("DHCP est déjà activé…")

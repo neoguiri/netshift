@@ -350,8 +350,25 @@ class ConfigForm(ctk.CTkFrame):
         self.extra.grid(row=10, column=0, columnspan=2, sticky="ew")
         self.extra.bind("<KeyRelease>", lambda e: self._changed())
 
+        self.adv = ctk.CTkSwitch(self, text="Options avancées : métrique d'interface et suffixe DNS",
+                                 font=Fonts.small, text_color=MUTED, progress_color=ACCENT,
+                                 command=self._update_state)
+        self.adv.grid(row=11, column=0, columnspan=2, sticky="w", pady=(12, 0))
+        self.adv_box = ctk.CTkFrame(self, fg_color="transparent")
+        self.adv_box.grid_columnconfigure((0, 1), weight=1, uniform="adv")
+        label(self.adv_box, "Métrique (auto ou 1–9999, plus petit = prioritaire)", Fonts.small, MUTED,
+              anchor="w").grid(row=0, column=0, sticky="w", padx=(0, 6), pady=(6, 2))
+        label(self.adv_box, "Suffixe DNS de la connexion", Fonts.small, MUTED, anchor="w").grid(
+            row=0, column=1, sticky="w", padx=(6, 0), pady=(6, 2))
+        self.metric = entry(self.adv_box, "auto")
+        self.metric.grid(row=1, column=0, sticky="ew", padx=(0, 6))
+        self.dns_suffix = entry(self.adv_box, "ex. corp.example (vide = aucun)")
+        self.dns_suffix.grid(row=1, column=1, sticky="ew", padx=(6, 0))
+        for e in (self.metric, self.dns_suffix):
+            self._watch(e)
+
         self.feedback = label(self, "", Fonts.small, MUTED, anchor="w", justify="left", wraplength=560)
-        self.feedback.grid(row=11, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        self.feedback.grid(row=13, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         self.set_config(EMPTY_CONFIG)
 
@@ -410,6 +427,10 @@ class ConfigForm(ctk.CTkFrame):
         dns_st = "disabled" if (not static and self.dns_auto.get()) else "normal"
         for w in (self.dns1, self.dns2):
             w.configure(state=dns_st, text_color=TEXT if dns_st == "normal" else MUTED)
+        if self.adv.get():
+            self.adv_box.grid(row=12, column=0, columnspan=2, sticky="ew")
+        else:
+            self.adv_box.grid_remove()
         self._changed()
 
     def set_config(self, cfg: dict):
@@ -425,6 +446,9 @@ class ConfigForm(ctk.CTkFrame):
         self.extra.delete("1.0", "end")
         self.extra.insert("1.0", "\n".join(cfg["extra_ips"]))
         self.mode.set("DHCP" if cfg["mode"] == "dhcp" else "Statique")
+        self.adv.select() if cfg.get("adv") else self.adv.deselect()
+        self._set(self.metric, "" if str(cfg.get("metric", "auto")) == "auto" else str(cfg.get("metric")))
+        self._set(self.dns_suffix, cfg.get("dns_suffix", ""))
         if cfg["mode"] == "dhcp" and cfg["dns_mode"] != "static":
             self.dns_auto.select()
         else:
@@ -443,6 +467,9 @@ class ConfigForm(ctk.CTkFrame):
             "dns1": self.dns1.get().strip() if dns_static else "",
             "dns2": self.dns2.get().strip() if dns_static else "",
             "extra_ips": [ln.strip() for ln in self.extra.get("1.0", "end").splitlines() if ln.strip()] if static else [],
+            "adv": bool(self.adv.get()),
+            "metric": self.metric.get().strip() or "auto",
+            "dns_suffix": self.dns_suffix.get().strip(),
         }
 
     def validate(self) -> tuple[list[str], list[str]]:

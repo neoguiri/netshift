@@ -356,12 +356,12 @@ class ToolsView(ctk.CTkFrame):
         holder.grid(row=3, column=0, sticky="nsew", padx=18, pady=(0, 18))
         holder.grid_columnconfigure(0, weight=1)
         holder.grid_rowconfigure(0, weight=1)
-        cols = ("ip", "name", "mac", "rtt", "via")
+        cols = ("ip", "name", "mac", "vendor", "rtt", "via")
         self.scan_tree = ttk.Treeview(holder, columns=cols, show="headings", style="IPM.Treeview",
                                       selectmode="browse")
-        for c, txt, w, anchor in (("ip", "Adresse IP", 140, "w"), ("name", "Nom d'hôte", 260, "w"),
-                                  ("mac", "Adresse MAC", 160, "w"), ("rtt", "Latence", 80, "e"),
-                                  ("via", "Détecté par", 110, "center")):
+        for c, txt, w, anchor in (("ip", "Adresse IP", 130, "w"), ("name", "Nom d'hôte", 220, "w"),
+                                  ("mac", "Adresse MAC", 150, "w"), ("vendor", "Fabricant", 190, "w"),
+                                  ("rtt", "Latence", 75, "e"), ("via", "Détecté par", 100, "center")):
             self.scan_tree.heading(c, text=txt, command=lambda c=c: self._scan_sort(c))
             self.scan_tree.column(c, width=int(w * ui_scale(self)), anchor=anchor, stretch=c == "name")
         self.scan_tree.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=6)
@@ -420,8 +420,8 @@ class ToolsView(ctk.CTkFrame):
         self._scan_found += 1
         own = {i.ip for a in self.app.adapters for i in a.ips}
         name = r.hostname + ("  (cet ordinateur)" if r.ip in own else "")
-        self.scan_tree.insert("", "end", values=(r.ip, name, r.mac, f"{r.rtt} ms" if r.rtt is not None else "—",
-                                                 r.via))
+        self.scan_tree.insert("", "end", values=(r.ip, name, r.mac, nt.mac_vendor(r.mac),
+                                                 f"{r.rtt} ms" if r.rtt is not None else "—", r.via))
         self._scan_sort("ip", keep=True)
 
     def _scan_prog(self, done, total):
@@ -503,7 +503,7 @@ class ToolsView(ctk.CTkFrame):
             self.app.copy(vals[2])
         elif action == "copy_all":
             rows = ["\t".join(self.scan_tree.item(k, "values")) for k in self.scan_tree.get_children("")]
-            self.app.copy("IP\tNom\tMAC\tLatence\tDétection\n" + "\n".join(rows))
+            self.app.copy("IP\tNom\tMAC\tFabricant\tLatence\tDétection\n" + "\n".join(rows))
 
     # ================================================================== PORTS
     def _build_ports(self, f):

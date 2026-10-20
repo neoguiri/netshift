@@ -16,10 +16,12 @@ netshift/
 ├── capture.py             packet decoding, display filters, pcap/pcapng I/O, statistics, raw-socket capture
 ├── capture_view.py        Tools → Capture UI (table, details, filters, statistics, Wireshark)
 ├── vpn.py                 Windows VPN connections: read, validate, build PowerShell commands, rasdial
-└── vpn_view.py            VPN tab (list, editor, connect / disconnect)
+├── vpn_view.py            VPN tab (list, editor, connect / disconnect)
+└── tray.py                system-tray icon and menu (pystray; optional)
 installer/netshift.iss     Inno Setup script (built and tested by the Release workflow)
 scripts/make_screenshots.py  documentation screenshots with fictitious data (rendered with PrintWindow)
 scripts/make_icon.py       generates the app icon and logos
+scripts/update_oui.py      rebuilds assets/oui.tsv.gz (MAC prefix -> manufacturer) from the IEEE registry
 tests/                     pytest suite (pure logic, capture decoding, screenshot guard)
 ```
 
@@ -110,3 +112,10 @@ Windows dialog (`rasphone -d`); disconnecting uses `rasdial /disconnect`.
 `netbackend.classify()` derives a type from `Get-NetAdapter` fields (MediaType, PhysicalMediaType,
 InterfaceType, Virtual, HardwareInterface) and well-known driver names (WireGuard, TAP, AnyConnect, Hyper-V,
 Parallels…). Hidden types are stored in `settings.json` (`hidden_kinds`).
+
+## System tray
+
+`tray.Tray` runs a pystray icon in its own thread (`run_detached`). The menu is rebuilt each time it opens from
+the current adapters and presets; every click is marshalled to the Tk thread with `App.ui()`. Applying a preset
+from the tray goes through the normal `App.apply()` path (validation, confirmation if enabled, history, log).
+If pystray or Pillow is missing the app runs without the icon.

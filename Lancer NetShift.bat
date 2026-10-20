@@ -5,7 +5,7 @@ where python >nul 2>nul || (
   pause
   exit /b 1
 )
-python -c "import customtkinter" >nul 2>nul || (
+python -c "import customtkinter, pystray, PIL" >nul 2>nul || (
   echo Installation des dependances...
   python -m pip install --user -r requirements.txt || (pause & exit /b 1)
 )

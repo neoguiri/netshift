@@ -40,12 +40,14 @@ en arrière immédiatement.
 - Configuration actuelle et nouvelle côte à côte ; clic sur une valeur pour la copier
 - DHCP ou IP fixe, masque en `255.255.255.0` **ou** `/24`, passerelle `.1` en un clic, IP secondaires
 - DNS manuels même en DHCP, DNS publics en un clic (Cloudflare, Google, Quad9, OpenDNS)
+- Options avancées : métrique d'interface (priorité des routes) et suffixe DNS de la connexion
 - Validation en direct (adresse réseau/broadcast, passerelle hors sous-réseau, saisie invalide…)
 - Résumé avant application, puis ping automatique de la passerelle pour vérifier
 
 **Presets**
 - Créer, modifier, dupliquer, réordonner, rechercher, ajouter des notes (site, équipement, VLAN…)
-- Appliquer n'importe quel preset à n'importe quelle carte ; double-clic = carte sélectionnée
+- Carte par défaut par preset (conservée même si l'adaptateur USB est débranché)
+- Appliquer n'importe quel preset à n'importe quelle carte ; double-clic = sa carte par défaut (sinon la carte sélectionnée)
 - Import / export JSON pour partager avec l'équipe
 
 **VPN**
@@ -56,13 +58,18 @@ en arrière immédiatement.
   déconnexion ; explication claire des erreurs `rasdial` courantes (691, 800, 809…)
 - Les clients tiers (WireGuard, OpenVPN, AnyConnect, FortiClient…) apparaissent dans les cartes avec le type « VPN »
 
+**Zone de notification**
+- Icône avec menu : ouvrir NetShift, **appliquer un preset en deux clics**, état de chaque carte
+- Option « fermer = réduire dans la zone de notification » ; notification Windows quand un changement est appliqué
+
 **Historique et retour arrière**
 - Chaque changement conserve la configuration précédente
 - *Annuler le dernier changement*, *Restaurer l'avant* ou *Réappliquer* ; journal exportable
 
 **Outils réseau** (natifs, sans fenêtre console)
 - **Ping** (nombre ou continu, statistiques), **traceroute**
-- **Scan réseau** ICMP **et** ARP : trouve aussi les machines qui bloquent le ping ; clic droit pour
+- **Scan réseau** ICMP **et** ARP : trouve aussi les machines qui bloquent le ping, affiche le **fabricant**
+  d'après l'adresse MAC (registre IEEE embarqué, sans requête réseau) ; clic droit pour
   pinger, scanner les ports, ouvrir en http(s), RDP ou partages
 - **Capture de paquets** : trafic IPv4 en direct sur la carte choisie, filtres façon Wireshark
   (`tcp port 443`, `dns or icmp`, `host 10.0.0.1 not port 22`…), filtres rapides, détail + hexdump,
@@ -96,7 +103,7 @@ cd netshift
 "Lancer NetShift.bat"
 ```
 
-Le lanceur installe l'unique dépendance (CustomTkinter) au premier lancement.
+Le lanceur installe les dépendances (CustomTkinter, pystray et Pillow pour l'icône de notification) au premier lancement.
 `build_exe.bat` produit `dist\NetShift.exe`, et l'installeur si [Inno Setup 6](https://jrsoftware.org/isdl.php)
 est installé.
 

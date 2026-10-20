@@ -97,6 +97,8 @@ DEMO_ADAPTERS = [
 ]
 
 DEMO_ADAPTERS[1].kind = "wifi"
+for _a, _m in zip(DEMO_ADAPTERS, (25, 35, 25, 25)):
+    _a.metric = _m
 DEMO_ADAPTERS += [
     nb.Adapter("wg-bureau", "WireGuard Tunnel", "Up", "", "1 Gbps", 41, "{demo-5}", False, False, True, 1420,
                [nb.IPAddr("10.66.0.12", 32, "Manual")], [], ["10.66.0.1"], kind="vpn"),
